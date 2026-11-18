@@ -1,6 +1,6 @@
 /* ==========================================================================
    EsquemaVet Ocaña - Plataforma de Gestión Clínica y Vigilancia Sanitaria
-   Estilos de Producción (Versión Entregable Profesional)
+   Estilos de Producción (Versión Entregable Profesional - Feria de Proyectos)
    ========================================================================== */
 
 :root {
@@ -35,8 +35,8 @@ body {
 
 /* Fondo corporativo de autenticación */
 .auth-bg-gradient {
-  background: radial-gradient(circle at 15% 20%, rgba(20, 184, 166, 0.22) 0%, transparent 45%),
-              radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.25) 0%, transparent 50%),
+  background: radial-gradient(circle at 15% 20%, rgba(20, 184, 166, 0.24) 0%, transparent 45%),
+              radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.26) 0%, transparent 50%),
               linear-gradient(135deg, #042f2e 0%, #0f172a 60%, #082f49 100%);
 }
 
@@ -54,9 +54,9 @@ body {
   position: absolute;
   top: 0;
   right: 0;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.06) 0%, transparent 70%);
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.07) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -75,7 +75,21 @@ body {
 /* Sello de verificación sanitaria */
 .official-seal {
   border: 2px dashed rgba(13, 148, 136, 0.45);
-  background: rgba(240, 253, 250, 0.7);
+  background: rgba(240, 253, 250, 0.75);
+}
+
+/* Mapa Georreferenciado de Ocaña (Leaflet) */
+#ocana-epi-map {
+  width: 100%;
+  height: 360px;
+  border-radius: 1rem;
+  z-index: 10;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.18) !important;
 }
 
 /* Barras de desplazamiento */
