@@ -3,11 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EsquemaVet Ocaña | Plataforma de Historiales Sanitarios y Vacunación de Mascotas</title>
+  <title>EsquemaVet Ocaña | Plataforma de Historiales Sanitarios, API Pública y Vacunación de Mascotas</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js para visualización analítica y epidemiológica -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Generador de Códigos QR Reales ISO/IEC 18004 Escaneables -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <!-- Leaflet CSS & JS (OpenStreetMap API para Georreferenciación en Ocaña) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Lucide Icons para iconografía médica y ejecutiva -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Tipografías Google Fonts -->
@@ -23,7 +28,176 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-md w-full px-4 pointer-events-auto no-print"></div>
 
   <!-- ========================================================================
-       PORTAL DE ACCESO Y REGISTRO DE CREDENCIALES
+       MODAL 1: VALIDADOR PÚBLICO DE CERTIFICADO SANITARIO Y CÓDIGO QR
+       ======================================================================== -->
+  <div id="public-verify-modal" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white text-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-[slideUpFade_0.25s_ease-out] max-h-[92vh] flex flex-col">
+      <div class="carnet-header-banner p-5 text-white flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center text-xl">
+            🛡️
+          </div>
+          <div>
+            <div class="text-[11px] font-bold uppercase tracking-wider text-teal-200">Portal Público de Verificación Sanitaria • Ocaña</div>
+            <h3 class="text-lg font-extrabold">Validación Oficial de Carnet y Firma Veterinaria</h3>
+          </div>
+        </div>
+        <button onclick="App.closePublicVerifierModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold">
+          ✕
+        </button>
+      </div>
+
+      <!-- Buscador interno del modal -->
+      <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-2">
+        <input id="modal-verify-input" type="text" placeholder="Código (OCA-PET-001), Microchip (COL-OCA-98102), Firma (SIG-...) o Cédula"
+          class="flex-1 min-w-[220px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500" />
+        <button onclick="App.runPublicVerificationFromModal()" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition">
+          🔍 Verificar Certificado
+        </button>
+      </div>
+
+      <!-- Contenido del resultado de verificación -->
+      <div id="public-verify-result-body" class="p-6 overflow-y-auto space-y-4 flex-1"></div>
+
+      <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <span>Trazabilidad Criptográfica SHA-256 • Red Municipal EsquemaVet Ocaña</span>
+        <button onclick="App.closePublicVerifierModal()" class="px-4 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 2: MODO PRESENTACIÓN FERIA DE PROYECTOS UFPSO & QR PÚBLICO WEB
+       ======================================================================== -->
+  <div id="fair-presentation-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white text-slate-900 rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-[slideUpFade_0.25s_ease-out] max-h-[92vh] flex flex-col">
+      <div class="bg-gradient-to-r from-teal-900 via-slate-900 to-sky-950 p-6 text-white flex items-center justify-between gap-4">
+        <div>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+            🎓 Feria de Proyectos • Ingeniería de Sistemas UFPSO (2026)
+          </span>
+          <h3 class="text-xl font-extrabold mt-1">EsquemaVet Ocaña — Acceso Público Web y Arquitectura API</h3>
+          <p class="text-xs text-teal-200/90 mt-0.5">Autores: Franklin Mauricio Hernández Galvis (0192326) & Andrés Felipe Carrascal Gómez (0192321)</p>
+        </div>
+        <button onclick="App.closeFairPresentationModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 flex-1">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center bg-slate-50 p-5 rounded-2xl border border-slate-200">
+          <div class="md:col-span-4 flex flex-col items-center text-center">
+            <div id="fair-public-qr-box" class="p-2 bg-white rounded-2xl shadow-md border border-slate-200"></div>
+            <span class="text-[11px] font-bold text-teal-800 mt-2">📱 Escanea con la cámara de tu celular</span>
+            <span class="text-[10px] text-slate-500">Abre el aplicativo público en vivo</span>
+          </div>
+          <div class="md:col-span-8 space-y-3">
+            <div class="text-xs font-bold uppercase text-teal-700">Enlace Público Desplegado en la Web</div>
+            <div class="flex items-center gap-2">
+              <input id="fair-public-url-input" type="text" readonly
+                value="https://antigravity.luch.dev/site/b8fc95dc-5aca-4e11-b80c-2fa0d8e8f0da/12e5c3d80acf70c398f608ea/"
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono text-slate-700" />
+              <button onclick="App.copyPublicSiteUrl()" class="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shrink-0">
+                Copiar URL
+              </button>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Los jurados y asistentes de la feria pueden escanear el código QR de la izquierda para abrir <strong>EsquemaVet Ocaña</strong> en sus teléfonos o escanear directamente el QR de cualquier <strong>Carnet Sanitario Digital</strong> para validar su autenticidad en tiempo real.
+            </p>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <button onclick="App.closeFairPresentationModal(); App.openPublicVerifierModal('OCA-PET-001');" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800">
+                🔍 Probar Validador QR (Max • OCA-PET-001)
+              </button>
+              <button onclick="App.closeFairPresentationModal(); App.quickAccountSelect('USR-VET-01');" class="px-3 py-1.5 rounded-xl bg-teal-100 text-teal-900 text-xs font-bold hover:bg-teal-200">
+                🩺 Demo Rol Médico Veterinario
+              </button>
+              <button onclick="App.closeFairPresentationModal(); App.quickAccountSelect('USR-ENT-01'); App.navigateTo('epidemiology');" class="px-3 py-1.5 rounded-xl bg-indigo-100 text-indigo-900 text-xs font-bold hover:bg-indigo-200">
+                🗺️ Ver Mapa Epidemiológico Ocaña
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resumen de Integraciones API en Vivo -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+          <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-1">
+            <div class="font-bold text-teal-800 flex items-center justify-between">
+              <span>1. API Biometeorológica Open-Meteo (REST)</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">EN VIVO</span>
+            </div>
+            <p class="text-slate-600">Conectada a las coordenadas oficiales de Ocaña (8.2377° N, 73.3560° O) para calcular el riesgo de vectores zoonóticos (garrapatas y pulgas) según temperatura y humedad reales.</p>
+          </div>
+          <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-1">
+            <div class="font-bold text-sky-800 flex items-center justify-between">
+              <span>2. Cartografía OpenStreetMap + Leaflet API</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">EN VIVO</span>
+            </div>
+            <p class="text-slate-600">Georreferenciación interactiva por barrios de Ocaña (La Primavera, El Carmen, Santa Clara, Centro, UFPSO) y clínicas veterinarias acreditadas.</p>
+          </div>
+          <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-1">
+            <div class="font-bold text-indigo-800 flex items-center justify-between">
+              <span>3. Códigos QR ISO/IEC 18004 + Deep Linking</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">VERIFICABLE</span>
+            </div>
+            <p class="text-slate-600">Cada carnet genera un QR vectorial escaneable con cualquier celular que enlaza a <code>?verify=OCA-PET-XXX</code> con firma criptográfica SHA-256.</p>
+          </div>
+          <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-1">
+            <div class="font-bold text-amber-800 flex items-center justify-between">
+              <span>4. Google Cloud Firestore REST + WhatsApp API</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">INTEGRADO</span>
+            </div>
+            <p class="text-slate-600">Sincronización documental en la nube, consola interactiva de endpoints OpenAPI y despacho directo de alertas preventivas vía WhatsApp Oficial (<code>wa.me</code>).</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <span>Docente Asesora: MSc. Yegny Karina Amaya Torrado • UFPSO</span>
+        <button onclick="App.closeFairPresentationModal()" class="px-4 py-1.5 rounded-xl bg-slate-900 text-white font-bold">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 3: DESPACHO DE RECORDATORIO PREVENTIVO VÍA WHATSAPP API
+       ======================================================================== -->
+  <div id="whatsapp-reminder-modal" class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+    <div class="bg-white text-slate-900 rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-[slideUpFade_0.25s_ease-out]">
+      <div class="bg-emerald-800 p-5 text-white flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-lg">📲</div>
+          <div>
+            <div class="text-[11px] font-bold uppercase text-emerald-200">Notificación Sanitaria Preventiva</div>
+            <h3 class="text-base font-extrabold">Enviar Recordatorio Oficial al Propietario</h3>
+          </div>
+        </div>
+        <button onclick="App.closeWhatsAppModal()" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold">✕</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div id="wa-modal-meta" class="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Mensaje Oficial Pre-formateado</label>
+          <textarea id="wa-modal-message" rows="6" class="w-full p-3 rounded-xl border border-slate-300 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+          <button onclick="App.copyWhatsAppMessage()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+            📋 Copiar Texto
+          </button>
+          <a id="wa-modal-direct-link" href="#" target="_blank" rel="noopener noreferrer" onclick="App.onWhatsAppLaunched()"
+            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition inline-flex items-center gap-1.5">
+            <span>💬 Abrir y Enviar en WhatsApp Oficial</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       PORTAL DE ACCESO, CONSULTA PÚBLICA QR Y REGISTRO DE CREDENCIALES
        ======================================================================== -->
   <section id="auth-screen" class="min-h-screen flex flex-col justify-between auth-bg-gradient text-white p-4 md:p-8">
     <!-- Encabezado Institucional -->
@@ -33,52 +207,67 @@
           <i data-lucide="shield-plus" class="w-6 h-6"></i>
         </div>
         <div>
-          <h1 class="font-extrabold text-lg md:text-xl tracking-tight text-white">EsquemaVet Ocaña</h1>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg md:text-xl tracking-tight text-white">EsquemaVet Ocaña</h1>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-400/20 text-teal-200 border border-teal-400/30">v2.5 Cloud & API</span>
+          </div>
           <p class="text-xs text-teal-200/90">Red Municipal de Historiales Sanitarios y Control de Vacunación Animal</p>
         </div>
       </div>
-      <div class="text-right text-xs text-slate-300 hidden sm:block">
-        <div class="font-semibold text-white">Municipio de Ocaña, Norte de Santander</div>
-        <div>Salud Pública Zoonótica • Bienestar Animal</div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <!-- Indicador API Clima Ocaña en Vivo -->
+        <div id="auth-weather-pill" onclick="App.openFairPresentationModal()" class="cursor-pointer px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs flex items-center gap-2 transition" title="Conectado en tiempo real a Open-Meteo API Ocaña">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Ocaña API: Cargando telemetría...</span>
+        </div>
+
+        <button onclick="App.openFairPresentationModal()" class="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs shadow-lg transition flex items-center gap-1.5">
+          <span>🎓 Modo Feria UFPSO & QR Web</span>
+        </button>
       </div>
     </div>
 
     <!-- Cuerpo Central -->
     <div class="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 my-auto py-8 items-center">
-      <!-- Presentación de la Plataforma y Cuentas Verificadas -->
-      <div class="lg:col-span-7 space-y-6">
+      <!-- Presentación de la Plataforma, Validador Público QR y Cuentas Verificadas -->
+      <div class="lg:col-span-7 space-y-5">
         <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/15 border border-teal-400/30 text-teal-200 text-xs font-semibold">
           <i data-lucide="check-circle-2" class="w-4 h-4 text-teal-400"></i>
-          <span>Plataforma Oficial de Trazabilidad e Inmunización Veterinaria</span>
+          <span>Plataforma Oficial de Trazabilidad e Inmunización Veterinaria • Ocaña, N. de S.</span>
         </div>
 
         <h2 class="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight text-white">
-          El historial clínico y carnet de vacunación de tu mascota, siempre seguro y al día.
+          El historial clínico y carnet de vacunación de tu mascota, siempre verificable en la web.
         </h2>
 
         <p class="text-slate-300 text-sm md:text-base leading-relaxed max-w-2xl">
-          Conectamos a las clínicas veterinarias, propietarios y autoridades sanitarias del municipio de Ocaña mediante carnets digitales inalterables, firmas profesionales verificadas y recordatorios preventivos oportunos.
+          Conectamos a las clínicas veterinarias, propietarios y autoridades sanitarias del municipio de Ocaña mediante carnets digitales con código QR real, firmas profesionales verificadas, georreferenciación y monitoreo epidemiológico conectado a APIs públicas.
         </p>
 
-        <!-- Beneficios Destacados -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-            <div class="text-teal-400 font-bold text-sm flex items-center gap-2">
-              <i data-lucide="qr-code" class="w-4 h-4"></i> Carnet con QR Oficial
-            </div>
-            <p class="text-xs text-slate-300 mt-1">Documento digital verificable e imprimible que reemplaza el carnet de cartulina.</p>
+        <!-- NUEVO: Validador Público de Carnet y Certificados QR (Sin necesidad de iniciar sesión) -->
+        <div class="p-4 md:p-5 rounded-2xl bg-teal-950/60 border border-teal-400/30 backdrop-blur-md space-y-3 shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
+              <i data-lucide="qr-code" class="w-4 h-4"></i> Consulta y Verificación Pública de Carnet / QR (Acceso Ciudadano)
+            </span>
+            <span class="text-[11px] text-teal-200/80 bg-teal-500/20 px-2 py-0.5 rounded-full border border-teal-400/20">
+              API Pública Activa
+            </span>
           </div>
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-            <div class="text-amber-400 font-bold text-sm flex items-center gap-2">
-              <i data-lucide="bell-ring" class="w-4 h-4"></i> Alertas de Refuerzo
-            </div>
-            <p class="text-xs text-slate-300 mt-1">Seguimiento inteligente de próximas dosis de vacunación y desparasitación.</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="landing-public-verify-input" type="text" placeholder="Ingrese Código (Ej. OCA-PET-001), Microchip (COL-OCA-98102) o Firma Digital..."
+              class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-white/20 text-white placeholder-slate-400 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-400" />
+            <button onclick="App.verifyFromLandingInput()" class="px-4 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs shadow-md transition shrink-0">
+              🔍 Validar Certificado
+            </button>
           </div>
-          <div class="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-            <div class="text-sky-400 font-bold text-sm flex items-center gap-2">
-              <i data-lucide="award" class="w-4 h-4"></i> Firma Veterinaria
-            </div>
-            <p class="text-xs text-slate-300 mt-1">Respaldo profesional exclusivo por médicos veterinarios acreditados.</p>
+          <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-300">
+            <span>Prueba rápida en feria:</span>
+            <button onclick="App.openPublicVerifierModal('OCA-PET-001')" class="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-teal-200 font-mono">OCA-PET-001 (Max)</button>
+            <button onclick="App.openPublicVerifierModal('OCA-PET-002')" class="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-teal-200 font-mono">OCA-PET-002 (Luna)</button>
+            <button onclick="App.openPublicVerifierModal('OCA-PET-003')" class="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-amber-200 font-mono">OCA-PET-003 (Rocky)</button>
+            <button onclick="App.openPublicVerifierModal('SIG-VET01-8F92A1C4')" class="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-sky-200 font-mono">Firma: SIG-VET01-8F92A1C4</button>
           </div>
         </div>
 
@@ -86,9 +275,9 @@
         <div class="bg-slate-900/70 backdrop-blur-md border border-white/10 rounded-2xl p-5 space-y-3">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
-              <i data-lucide="users" class="w-4 h-4"></i> Cuentas Institucionales Precargadas
+              <i data-lucide="users" class="w-4 h-4"></i> Cuentas Institucionales Precargadas (Demo 1 Clic)
             </span>
-            <span class="text-[11px] text-slate-400">Acceso directo con un clic</span>
+            <span class="text-[11px] text-slate-400">Seleccione un rol para explorar</span>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button onclick="App.quickAccountSelect('USR-PRO-01')" class="p-3.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-left transition group">
@@ -104,7 +293,7 @@
             <button onclick="App.quickAccountSelect('USR-ENT-01')" class="p-3.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-left transition group">
               <div class="text-[11px] font-bold text-indigo-300">SALUD PÚBLICA</div>
               <div class="font-bold text-sm text-white mt-0.5 group-hover:text-indigo-200">Secretaría de Salud</div>
-              <div class="text-[11px] text-slate-400 mt-0.5">Vigilancia y Censo Ocaña</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">Mapa y Censo Ocaña</div>
             </button>
           </div>
         </div>
@@ -247,8 +436,8 @@
 
     <!-- Pie Institucional -->
     <div class="max-w-6xl w-full mx-auto text-center md:flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-4">
-      <div>Desarrollado por: <strong class="text-slate-200">Franklin Mauricio Hernández Galvis</strong> & <strong class="text-slate-200">Andrés Felipe Carrascal Gómez</strong></div>
-      <div>Universidad Francisco de Paula Santander Seccional Ocaña (UFPSO) • 2026</div>
+      <div>Desarrollado por: <strong class="text-slate-200">Franklin Mauricio Hernández Galvis (0192326)</strong> & <strong class="text-slate-200">Andrés Felipe Carrascal Gómez (0192321)</strong></div>
+      <div>Universidad Francisco de Paula Santander Seccional Ocaña (UFPSO) • Proyecto Integrador I • 2026</div>
     </div>
   </section>
 
@@ -270,24 +459,32 @@
               <span class="font-extrabold text-slate-900 text-base tracking-tight">EsquemaVet Ocaña</span>
               <span id="header-cloud-badge" onclick="App.navigateTo('cloud')" class="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 cursor-pointer">
                 <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                <span>Almacenamiento Híbrido</span>
+                <span>API & Cloud Activo</span>
               </span>
             </div>
-            <p class="text-xs text-slate-500">Sistema de Gestión de Historiales Sanitarios y Vacunación Animal</p>
+            <p class="text-xs text-slate-500">Sistema de Gestión de Historiales Sanitarios y Vacunación Animal • UFPSO</p>
           </div>
         </div>
 
         <!-- Controles de Usuario y Notificaciones -->
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button onclick="App.openFairPresentationModal()" class="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition flex items-center gap-1.5">
+            <span>🎓 QR Feria</span>
+          </button>
+
+          <button onclick="App.openPublicVerifierModal(App.selectedPetId || 'OCA-PET-001')" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1">
+            <span>🔍 Validador QR</span>
+          </button>
+
           <!-- Selector de cambio rápido de cuenta para pruebas -->
           <div class="hidden xl:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-            <span class="text-xs font-semibold text-slate-500">Cambiar cuenta:</span>
+            <span class="text-xs font-semibold text-slate-500">Rol activo:</span>
             <select id="account-quick-switcher" onchange="App.quickAccountSelect(this.value)" class="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none">
             </select>
           </div>
 
           <button onclick="App.navigateTo('dashboard')" class="relative px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold hover:bg-amber-100 transition flex items-center gap-1.5" title="Ver alertas de refuerzos">
-            <span>🔔 Recordatorios</span>
+            <span>🔔 Alertas</span>
             <span id="header-alert-count" class="px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[11px] font-extrabold">0</span>
           </button>
 
@@ -297,7 +494,7 @@
           </div>
 
           <button onclick="App.logout()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 text-slate-700 border border-slate-200 text-xs font-bold transition">
-            Cerrar Sesión
+            Salir
           </button>
         </div>
       </div>
@@ -319,6 +516,7 @@
 
           <button id="nav-btn-carnet" onclick="App.navigateTo('carnet')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
             <span class="flex items-center gap-2.5"><i data-lucide="id-card" class="w-4 h-4"></i> Carnet Sanitario Digital</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-bold">QR</span>
           </button>
 
           <button id="nav-btn-pets" onclick="App.navigateTo('pets')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
@@ -338,13 +536,28 @@
 
           <div id="nav-item-epidemiology">
             <button id="nav-btn-epidemiology" onclick="App.navigateTo('epidemiology')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
-              <span class="flex items-center gap-2.5"><i data-lucide="activity" class="w-4 h-4"></i> Vigilancia Epidemiológica</span>
+              <span class="flex items-center gap-2.5"><i data-lucide="map-pin" class="w-4 h-4"></i> Vigilancia y Mapa Ocaña</span>
             </button>
           </div>
 
           <button id="nav-btn-cloud" onclick="App.navigateTo('cloud')" class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
-            <span class="flex items-center gap-2.5"><i data-lucide="cloud-cog" class="w-4 h-4"></i> Google Cloud y Respaldos</span>
+            <span class="flex items-center gap-2.5"><i data-lucide="cloud-cog" class="w-4 h-4"></i> API Pública & Cloud</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 font-bold">REST</span>
           </button>
+        </div>
+
+        <!-- Monitor Biometeorológico Conectado a API Open-Meteo -->
+        <div id="sidebar-weather-card" class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase text-teal-700 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              API Clima & Vectores Ocaña
+            </span>
+            <button onclick="App.refreshWeatherTelemetry(true)" class="text-[11px] text-slate-400 hover:text-teal-700 font-semibold">↻</button>
+          </div>
+          <div id="sidebar-weather-body" class="text-xs text-slate-600">
+            Consultando Open-Meteo API...
+          </div>
         </div>
 
         <!-- Tarjeta Informativa de Salud Pública Ocaña -->
@@ -354,10 +567,10 @@
             <span>Compromiso Sanitario Ocaña</span>
           </div>
           <p class="text-xs text-slate-300 leading-relaxed">
-            La inmunización oportuna de caninos y felinos protege la salud pública del municipio y previene el contagio de enfermedades zoonóticas.
+            La inmunización oportuna de caninos y felinos protege la salud pública del municipio y cumple con la meta del ODS 3 (Salud y Bienestar).
           </p>
           <div class="pt-1 text-[11px] text-teal-300 font-semibold">
-            Línea de Atención Zoonosis • Ocaña, N. de S.
+            UFPSO • Ingeniería de Sistemas 2026
           </div>
         </div>
       </aside>
@@ -366,7 +579,7 @@
       <main class="lg:col-span-9 space-y-6">
 
         <!-- ==================================================================
-             VISTA 1: PANEL DE CONTROL, ESTADÍSTICAS Y RECORDATORIOS
+             VISTA 1: PANEL DE CONTROL, TELEMETRÍA API Y RECORDATORIOS
              ================================================================== -->
         <section id="view-dashboard" class="view-section space-y-6">
           <!-- Banner de Bienvenida -->
@@ -396,6 +609,9 @@
             </div>
           </div>
 
+          <!-- Barra de Telemetría Biometeorológica en Vivo (Open-Meteo REST API) -->
+          <div id="dashboard-api-weather-banner" class="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm"></div>
+
           <!-- Gráfica de Estado Inmunológico + Mascotas Recientes -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm flex flex-col justify-between">
@@ -412,7 +628,7 @@
               <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div>
                   <h3 class="font-bold text-slate-900 text-base">Acceso Rápido a Mascotas</h3>
-                  <p class="text-xs text-slate-500">Seleccione un paciente para abrir su Carnet Sanitario Digital</p>
+                  <p class="text-xs text-slate-500">Seleccione un paciente para abrir su Carnet Sanitario Digital con QR</p>
                 </div>
                 <button onclick="App.navigateTo('pets')" class="text-xs font-bold text-teal-700 hover:underline">
                   Ver todas →
@@ -426,9 +642,9 @@
           <div class="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
               <div>
-                <h3 class="font-bold text-slate-900 text-base">Calendario Preventivo y Alertas de Refuerzo</h3>
+                <h3 class="font-bold text-slate-900 text-base">Calendario Preventivo y Despacho de Alertas WhatsApp</h3>
                 <p class="text-xs text-slate-500">
-                  Seguimiento automatizado de próximas aplicaciones para prevenir retrasos en el esquema sanitario.
+                  Seguimiento automatizado de próximas aplicaciones con envío directo de recordatorios al WhatsApp del propietario.
                 </p>
               </div>
               <!-- Filtros de Alertas -->
@@ -466,7 +682,7 @@
           <div id="pet-registration-panel" class="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-5">
               <div>
-                <span class="text-xs font-bold uppercase text-teal-700">Admisión de Pacientes</span>
+                <span class="text-xs font-bold uppercase text-teal-700">Admisión y Georreferenciación de Pacientes</span>
                 <h2 class="text-lg font-bold text-slate-900">Registrar Nueva Mascota y Vincular Propietario</h2>
               </div>
               <span class="text-xs px-3 py-1 rounded-full bg-teal-50 text-teal-800 font-semibold border border-teal-200">
@@ -513,12 +729,33 @@
                 <input id="pet-color" type="text" placeholder="Ej. Dorado con pecho blanco" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm" />
               </div>
               <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Sector / Barrio en Ocaña *</label>
+                <select id="pet-neighborhood" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                  <option value="La Primavera">Barrio La Primavera</option>
+                  <option value="El Carmen">Sector El Carmen</option>
+                  <option value="Santa Clara">Barrio Santa Clara</option>
+                  <option value="Centro">Zona Centro</option>
+                  <option value="Ciudadela Norte">Ciudadela Norte</option>
+                  <option value="Juan XXIII">Barrio Juan XXIII</option>
+                  <option value="Agua de la Virgen">Agua de la Virgen</option>
+                  <option value="Acolsure / UFPSO">Sector Acolsure / UFPSO</option>
+                </select>
+              </div>
+              <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Código de Microchip / Placa</label>
                 <input id="pet-microchip" type="text" placeholder="Se genera código si se omite" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm" />
               </div>
-              <div>
+
+              <div class="md:col-span-2">
                 <label class="block text-xs font-bold text-teal-800 mb-1">Propietario Responsable *</label>
                 <select id="pet-owner-id" required class="w-full px-3.5 py-2 rounded-xl border-2 border-teal-500 bg-teal-50/30 text-sm font-semibold">
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Estado Reproductivo</label>
+                <select id="pet-sterilized" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+                  <option value="true">Esterilizado(a)</option>
+                  <option value="false">Entero / No esterilizado</option>
                 </select>
               </div>
 
@@ -527,7 +764,7 @@
                   ¿El propietario es nuevo? <button type="button" onclick="App.navigateTo('users')" class="text-teal-700 font-bold underline">Regístrelo rápidamente en el módulo de Usuarios</button>
                 </span>
                 <button type="submit" class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md transition">
-                  Guardar Ficha de Mascota
+                  Guardar Ficha y Georreferenciar en Ocaña
                 </button>
               </div>
             </form>
@@ -538,10 +775,10 @@
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h3 class="font-bold text-slate-900 text-base">Padrón y Directorio de Mascotas</h3>
-                <p class="text-xs text-slate-500">Búsqueda instantánea por código sanitario, nombre de mascota, microchip o documento del propietario</p>
+                <p class="text-xs text-slate-500">Búsqueda instantánea por código sanitario, nombre de mascota, barrio, microchip o documento del propietario</p>
               </div>
               <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <input id="directory-search-input" type="text" placeholder="Buscar mascota, código, raza o propietario..."
+                <input id="directory-search-input" type="text" placeholder="Buscar mascota, código, barrio o propietario..."
                   class="w-full sm:w-72 px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
                 <select id="directory-species-filter" class="px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-medium">
                   <option value="ALL">Todas las especies</option>
@@ -557,7 +794,7 @@
                   <tr class="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 bg-slate-50">
                     <th class="px-4 py-3">Código</th>
                     <th class="px-4 py-3">Paciente</th>
-                    <th class="px-4 py-3">Características</th>
+                    <th class="px-4 py-3">Características y Sector</th>
                     <th class="px-4 py-3">Edad</th>
                     <th class="px-4 py-3">Propietario Responsable</th>
                     <th class="px-4 py-3 text-center">Esquema</th>
@@ -571,7 +808,7 @@
         </section>
 
         <!-- ==================================================================
-             VISTA 3: CARNET SANITARIO DIGITAL OFICIAL E IMPRIMIBLE
+             VISTA 3: CARNET SANITARIO DIGITAL OFICIAL E IMPRIMIBLE CON QR REAL
              ================================================================== -->
         <section id="view-carnet" class="view-section hidden space-y-6">
           <!-- Barra de Herramientas del Carnet -->
@@ -581,19 +818,25 @@
               <select id="carnet-pet-selector" onchange="App.onCarnetPetChange(this.value)" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800">
               </select>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="App.openPublicVerifierModal(App.selectedPetId)" class="px-3.5 py-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition flex items-center gap-1.5">
+                <span>🔍 Simular Escaneo QR Público</span>
+              </button>
+              <button onclick="App.copyCurrentCarnetVerifyLink()" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1.5">
+                <span>🔗 Copiar Enlace QR</span>
+              </button>
               <button onclick="window.print()" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition flex items-center gap-2">
-                <span>🖨️ Imprimir / Descargar Carnet Oficial (PDF)</span>
+                <span>🖨️ Imprimir / PDF Oficial</span>
               </button>
             </div>
           </div>
 
           <!-- Documento Oficial: Carnet Sanitario Digital -->
           <div id="printable-carnet" class="carnet-card rounded-3xl overflow-hidden">
-            <!-- Cabecera del Carnet con QR de Verificación -->
+            <!-- Cabecera del Carnet con QR Real Escaneable -->
             <div class="carnet-header-banner p-6 md:p-7 text-white flex flex-wrap items-center justify-between gap-6">
               <div class="flex items-center gap-4">
-                <div class="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur border border-white/30 flex items-center justify-center text-3xl shadow-inner">
+                <div id="carnet-species-avatar" class="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur border border-white/30 flex items-center justify-center text-3xl shadow-inner">
                   🐾
                 </div>
                 <div>
@@ -604,19 +847,20 @@
                     CARNET SANITARIO DIGITAL DE INMUNIZACIÓN
                   </h2>
                   <p class="text-xs text-teal-100/90 mt-0.5">
-                    Certificado Electrónico de Vacunación, Desparasitación y Trazabilidad Clínica
+                    Certificado Electrónico de Vacunación, Desparasitación y Trazabilidad Clínica • UFPSO
                   </p>
                 </div>
               </div>
 
-              <!-- Bloque de Código Sanitario y QR Vectorial -->
-              <div class="flex items-center gap-3 bg-white/95 text-slate-900 p-3 rounded-2xl shadow-lg">
+              <!-- Bloque de Código Sanitario y QR Vectorial ISO/IEC 18004 -->
+              <div onclick="App.openPublicVerifierModal(App.selectedPetId)" class="cursor-pointer flex items-center gap-3.5 bg-white/95 text-slate-900 p-3 rounded-2xl shadow-lg hover:scale-[1.01] transition" title="Escanea con tu celular o haz clic para abrir el validador público">
                 <div class="text-right pr-1">
                   <div class="text-[10px] font-bold uppercase text-slate-400">Registro Sanitario</div>
                   <div id="carnet-pet-id" class="font-mono font-extrabold text-base text-teal-700">OCA-PET-001</div>
-                  <div class="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-1">
+                  <div id="carnet-global-status-badge" class="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-1">
                     ✔ Activo y Verificado
                   </div>
+                  <div class="text-[9px] text-slate-400 mt-0.5">QR Escaneable en Web</div>
                 </div>
                 <div id="carnet-qr-box" class="shrink-0"></div>
               </div>
@@ -629,7 +873,7 @@
                 <div class="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/90 space-y-3">
                   <div class="text-xs font-bold uppercase tracking-wider text-teal-800 border-b border-slate-200 pb-2 flex items-center justify-between">
                     <span>1. Identificación del Animal de Compañía</span>
-                    <span class="text-[11px] font-mono text-slate-500">Ficha Oficial</span>
+                    <span id="carnet-pet-neighborhood" class="text-[11px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">Sector Ocaña</span>
                   </div>
                   <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
@@ -641,7 +885,7 @@
                       <span id="carnet-pet-species" class="font-bold text-slate-800">Canino</span>
                     </div>
                     <div>
-                      <span class="text-slate-400 block">Sexo:</span>
+                      <span class="text-slate-400 block">Sexo / Estado:</span>
                       <span id="carnet-pet-sex" class="font-semibold text-slate-800">Macho</span>
                     </div>
                     <div>
@@ -693,7 +937,7 @@
                     3. Registro Histórico de Vacunación y Control Antiparasitario
                   </span>
                   <span class="text-[11px] text-teal-300 font-semibold">
-                    Certificación con Firma Digital Veterinaria
+                    Certificación con Firma Digital Veterinaria (SHA-256)
                   </span>
                 </div>
                 <div class="overflow-x-auto">
@@ -717,7 +961,7 @@
               <!-- Sello Oficial Inferior -->
               <div class="official-seal rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-600">
                 <div>
-                  <strong>Validez Sanitaria:</strong> Este carnet digital cuenta con trazabilidad clínica inalterable verificada por profesionales acreditados en el municipio de Ocaña, Norte de Santander.
+                  <strong>Validez Sanitaria y Verificación QR:</strong> Este carnet digital cuenta con trazabilidad clínica inalterable verificada por profesionales acreditados en el municipio de Ocaña, Norte de Santander.
                 </div>
                 <div class="font-mono text-[11px] text-teal-900 font-bold">
                   ESQUEMAVET-OCAÑA • DOCUMENTO OFICIAL
@@ -742,8 +986,16 @@
                   Certificar Aplicación de Vacuna o Antiparasitario
                 </h2>
                 <p class="text-xs text-slate-500">
-                  Consigne los datos técnicos del biológico suministrado y programe la fecha del próximo refuerzo preventivo.
+                  Seleccione un protocolo rápido o consigne los datos técnicos del biológico suministrado.
                 </p>
+              </div>
+
+              <!-- NUEVO: Asistente Clínico de Protocolos Rápidos -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
+                <div class="text-[11px] font-bold uppercase text-slate-500 flex items-center justify-between">
+                  <span>⚡ Autocompletar Protocolo Estándar (Calcula dosis por peso y fecha de refuerzo)</span>
+                </div>
+                <div id="vac-quick-presets" class="flex flex-wrap gap-1.5"></div>
               </div>
 
               <form id="form-register-vaccine" class="space-y-4">
@@ -976,19 +1228,26 @@
         </section>
 
         <!-- ==================================================================
-             VISTA 6: VIGILANCIA EPIDEMIOLÓGICA Y CENSO MUNICIPAL
+             VISTA 6: VIGILANCIA EPIDEMIOLÓGICA, MAPA DE OCAÑA Y CENSO
              ================================================================== -->
         <section id="view-epidemiology" class="view-section hidden space-y-6">
-          <div class="carnet-header-banner rounded-3xl p-6 md:p-7 text-white shadow-lg">
-            <span class="text-xs font-bold uppercase tracking-wider text-teal-200">
-              Salud Pública Municipal • Ocaña, Norte de Santander
-            </span>
-            <h2 class="text-xl md:text-2xl font-extrabold mt-1">
-              Tablero de Vigilancia Epidemiológica y Censo de Animales de Compañía
-            </h2>
-            <p class="text-xs md:text-sm text-teal-100 mt-1 max-w-3xl">
-              Consolidado poblacional de caninos y felinos registrados en el municipio y auditoría de lotes biológicos aplicados para la prevención de enfermedades zoonóticas.
-            </p>
+          <div class="carnet-header-banner rounded-3xl p-6 md:p-7 text-white shadow-lg flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-teal-200">
+                Salud Pública Municipal • Ocaña, Norte de Santander (ODS 3)
+              </span>
+              <h2 class="text-xl md:text-2xl font-extrabold mt-1">
+                Vigilancia Epidemiológica, Mapa Georreferenciado y Censo Municipal
+              </h2>
+              <p class="text-xs md:text-sm text-teal-100 mt-1 max-w-3xl">
+                Monitoreo espacial interactivo (OpenStreetMap API) de clínicas veterinarias y mascotas censadas por barrios en Ocaña, junto con la matriz de trazabilidad biológica.
+              </p>
+            </div>
+            <div class="bg-white/15 backdrop-blur-sm border border-white/25 rounded-2xl p-3.5 text-right">
+              <div class="text-[10px] font-bold uppercase text-teal-200">Cobertura Antirrábica</div>
+              <div id="epi-rabies-coverage-pct" class="text-2xl font-extrabold text-white">83%</div>
+              <div class="text-[11px] text-emerald-300 font-semibold">Meta OMS/OPS: ≥ 80%</div>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1014,6 +1273,23 @@
             </div>
           </div>
 
+          <!-- NUEVO: Mapa Georreferenciado Interactivo de Ocaña (OpenStreetMap + Leaflet API) -->
+          <div class="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span class="text-[11px] font-bold uppercase text-teal-700">Cartografía Interactiva Conectada a OpenStreetMap API</span>
+                <h3 class="font-bold text-slate-900 text-base">Mapa Epidemiológico por Sectores y Clínicas de Ocaña (8.2377° N, 73.3560° O)</h3>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 font-semibold">🏥 Clínicas / UFPSO</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">🐾 Mascota Al Día</span>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-semibold">⚠️ Refuerzo Pendiente</span>
+              </div>
+            </div>
+            <div id="ocana-epi-map" class="border border-slate-200 shadow-inner"></div>
+            <div id="epi-neighborhood-summary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1"></div>
+          </div>
+
           <!-- Gráfica de Cobertura Municipal -->
           <div class="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm space-y-3">
             <h3 class="font-bold text-slate-900 text-base">Balance Gráfico de Censo e Inmunización en Ocaña</h3>
@@ -1031,9 +1307,14 @@
                   Registro verificable de cada lote biológico, paciente, fecha de aplicación y médico veterinario responsable.
                 </p>
               </div>
-              <button onclick="App.exportDatabaseBackup()" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition">
-                📥 Exportar Reporte Sanitario (JSON)
-              </button>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="App.exportEpidemiologyCSV()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition">
+                  📊 Exportar Matriz Excel (.CSV)
+                </button>
+                <button onclick="App.exportDatabaseBackup()" class="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition">
+                  📥 Exportar Reporte (.JSON)
+                </button>
+              </div>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse">
@@ -1055,17 +1336,96 @@
         </section>
 
         <!-- ==================================================================
-             VISTA 7: GOOGLE CLOUD PLATFORM Y COPIAS DE SEGURIDAD
+             VISTA 7: API PÚBLICA REST, GOOGLE CLOUD Y COPIAS DE SEGURIDAD
              ================================================================== -->
         <section id="view-cloud" class="view-section hidden space-y-6">
+          <!-- NUEVO: Consola Interactiva de API Pública REST (OpenAPI Explorer) -->
+          <div class="bg-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    OPENAPI REST v1 • EN VIVO
+                  </span>
+                  <span class="text-xs text-slate-400 font-mono">CORS Enabled • JSON UTF-8</span>
+                </div>
+                <h2 class="text-lg md:text-xl font-extrabold mt-1">
+                  Consola Interactiva de API Pública Web — EsquemaVet Ocaña
+                </h2>
+                <p class="text-xs text-slate-300">
+                  Pruebe en vivo los endpoints públicos de consulta epidemiológica, verificación sanitaria QR y telemetría biometeorológica de Ocaña.
+                </p>
+              </div>
+              <button onclick="App.openFairPresentationModal()" class="px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs transition">
+                📱 Ver QR y URL Pública Web
+              </button>
+            </div>
+
+            <!-- Botones de Endpoints REST -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <button onclick="App.testLiveAPIEndpoint('CENSO')" class="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">GET</span>
+                  <span class="text-[10px] text-slate-400">200 OK</span>
+                </div>
+                <div class="font-mono text-xs font-bold text-white mt-1.5">/api/v1/ocana/censo</div>
+                <div class="text-[11px] text-slate-400 mt-0.5">Consolidado municipal y cobertura</div>
+              </button>
+
+              <button onclick="App.testLiveAPIEndpoint('VERIFY')" class="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">GET</span>
+                  <span class="text-[10px] text-slate-400">SHA-256</span>
+                </div>
+                <div class="font-mono text-xs font-bold text-white mt-1.5">/api/v1/ocana/verify/OCA-PET-001</div>
+                <div class="text-[11px] text-slate-400 mt-0.5">Certificado sanitario y firma QR</div>
+              </button>
+
+              <button onclick="App.testLiveAPIEndpoint('WEATHER')" class="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">GET EXTERNAL</span>
+                  <span class="text-[10px] text-slate-400">Open-Meteo</span>
+                </div>
+                <div class="font-mono text-xs font-bold text-white mt-1.5">/api/v1/ocana/biometeo</div>
+                <div class="text-[11px] text-slate-400 mt-0.5">Clima real Ocaña y riesgo vectorial</div>
+              </button>
+
+              <button onclick="App.testLiveAPIEndpoint('CLOUD_SYNC')" class="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left transition">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">POST</span>
+                  <span class="text-[10px] text-slate-400">Firestore</span>
+                </div>
+                <div class="font-mono text-xs font-bold text-white mt-1.5">/api/v1/cloud/sync-all</div>
+                <div class="text-[11px] text-slate-400 mt-0.5">Sincronizar colecciones con Cloud</div>
+              </button>
+            </div>
+
+            <!-- Visor de Respuesta JSON en Tiempo Real -->
+            <div class="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden">
+              <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div class="flex items-center gap-2 font-mono">
+                  <span id="api-console-method" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[11px]">GET</span>
+                  <span id="api-console-url" class="text-slate-300">/api/v1/ocana/censo</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span id="api-console-status" class="text-emerald-400 font-mono text-[11px] font-bold">HTTP 200 OK • 8 ms</span>
+                  <button onclick="App.copyAPIConsoleOutput()" class="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold">
+                    Copiar JSON
+                  </button>
+                </div>
+              </div>
+              <pre id="api-console-output" class="p-4 text-xs font-mono text-teal-300 overflow-x-auto max-h-72 leading-relaxed"></pre>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Configuración de Conexión Google Cloud Firestore -->
+            <!-- Configuración de Conexión Google Cloud Firestore y Webhook REST -->
             <div class="lg:col-span-6 bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm space-y-4">
               <div class="border-b border-slate-100 pb-3">
-                <span class="text-xs font-bold uppercase text-sky-700">Infraestructura Cloud</span>
-                <h3 class="text-base font-bold text-slate-900">Conexión con Google Cloud Firestore</h3>
+                <span class="text-xs font-bold uppercase text-sky-700">Infraestructura Cloud & Webhooks</span>
+                <h3 class="text-base font-bold text-slate-900">Conexión con Google Cloud Firestore / API Externa</h3>
                 <p class="text-xs text-slate-500">
-                  Configure las credenciales de su proyecto en Google Cloud / Firebase para sincronizar los registros en tiempo real.
+                  Configure las credenciales de su proyecto en Google Cloud / Firebase o un Webhook REST para replicar cada registro en tiempo real.
                 </p>
               </div>
 
@@ -1079,6 +1439,10 @@
                   <input id="gcp-api-key" type="password" placeholder="AIzaSy..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-mono" />
                 </div>
                 <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Endpoint Webhook REST Externo (Opcional)</label>
+                  <input id="gcp-webhook-url" type="url" placeholder="https://tu-api-backend.com/webhook/esquemavet" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-mono" />
+                </div>
+                <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">Región de Base de Datos</label>
                   <select id="gcp-region" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
                     <option value="us-east1">us-east1 (Carolina del Sur - Baja Latencia Colombia)</option>
@@ -1088,11 +1452,11 @@
                 </div>
                 <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 pt-1 cursor-pointer">
                   <input id="gcp-enabled" type="checkbox" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
-                  <span>Activar envío automático de documentos a Cloud Firestore</span>
+                  <span>Activar envío automático de documentos a Cloud Firestore / API REST</span>
                 </label>
 
                 <button type="submit" class="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow transition">
-                  Guardar Configuración Cloud
+                  Guardar Configuración Cloud y API
                 </button>
               </form>
             </div>
@@ -1110,7 +1474,7 @@
 
                 <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                   <div class="text-xs font-bold text-slate-800">1. Exportar Copia de Seguridad Actual</div>
-                  <p class="text-xs text-slate-500">Incluye cuentas de usuarios, credenciales cifradas, fichas de mascotas e historial de biológicos firmados.</p>
+                  <p class="text-xs text-slate-500">Incluye cuentas de usuarios, credenciales cifradas, fichas de mascotas georreferenciadas e historial de biológicos firmados.</p>
                   <button onclick="App.exportDatabaseBackup()" class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow transition">
                     💾 Descargar Respaldo Completo (.JSON)
                   </button>
@@ -1133,7 +1497,7 @@
 
           <!-- Bitácora de Sincronización y Auditoría -->
           <div class="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm space-y-3">
-            <h3 class="font-bold text-slate-900 text-base">Bitácora de Transacciones y Sincronización Cloud</h3>
+            <h3 class="font-bold text-slate-900 text-base">Bitácora de Transacciones y Sincronización Cloud / API</h3>
             <div class="overflow-x-auto">
               <table class="w-full text-left border-collapse">
                 <thead>
