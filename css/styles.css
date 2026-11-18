@@ -1,0 +1,124 @@
+/* ==========================================================================
+   EsquemaVet Ocaña - Plataforma de Gestión Clínica y Vigilancia Sanitaria
+   Estilos de Producción (Versión Entregable Profesional)
+   ========================================================================== */
+
+:root {
+  --primary: #0d9488;
+  --primary-dark: #0f766e;
+  --secondary: #0284c7;
+  --bg-app: #f1f5f9;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-app);
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Animaciones suaves de vistas y modales */
+.view-section {
+  animation: slideUpFade 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fondo corporativo de autenticación */
+.auth-bg-gradient {
+  background: radial-gradient(circle at 15% 20%, rgba(20, 184, 166, 0.22) 0%, transparent 45%),
+              radial-gradient(circle at 85% 80%, rgba(2, 132, 199, 0.25) 0%, transparent 50%),
+              linear-gradient(135deg, #042f2e 0%, #0f172a 60%, #082f49 100%);
+}
+
+/* Diseño del Carnet Sanitario Oficial */
+.carnet-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 35px -10px rgba(15, 23, 42, 0.08), 0 8px 15px -6px rgba(15, 23, 42, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+.carnet-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.carnet-header-banner {
+  background: linear-gradient(115deg, #042f2e 0%, #0f766e 55%, #0369a1 100%);
+}
+
+/* Firma digital estilizada */
+.signature-script {
+  font-family: 'Dancing Script', cursive, serif;
+  font-size: 1.35rem;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+/* Sello de verificación sanitaria */
+.official-seal {
+  border: 2px dashed rgba(13, 148, 136, 0.45);
+  background: rgba(240, 253, 250, 0.7);
+}
+
+/* Barras de desplazamiento */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Reglas de Impresión para exportar Carnet Oficial en PDF */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #printable-carnet,
+  #printable-carnet * {
+    visibility: visible;
+  }
+  #printable-carnet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: 2px solid #0f766e !important;
+    border-radius: 12px !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
