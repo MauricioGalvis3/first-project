@@ -52,6 +52,18 @@
       "created_at": "2026-11-18T16:10:31.563Z",
       "sender": "macOS",
       "is_cancelled": false
+    },
+    {
+      "id": "fa440627-31ec-4768-ba12-83ac9735e432",
+      "role": "user",
+      "content": "Trabajemos con ese repositorio las siguientes modificaciones que te pedire",
+      "status": "pending",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": null,
+      "created_at": "2026-11-18T16:11:12.971Z",
+      "sender": "ios",
+      "is_cancelled": false
     }
   ]
 }
