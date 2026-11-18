@@ -1,6 +1,6 @@
-# 🐾 EsquemaVet Ocaña — Documentación Técnica del Aplicativo Web (Versión Entregable — Fase 2)
+# 🐾 EsquemaVet Ocaña — Documentación Técnica del Aplicativo Web (Versión Feria de Proyectos UFPSO)
 
-**Título del Proyecto:** Desarrollo de un aplicativo web para la gestión de historiales sanitarios y control de vacunación de mascotas en el municipio de Ocaña  
+**Título del Proyecto:** Desarrollo de un aplicativo web para la gestión de historiales sanitarios, verificación pública QR y control de vacunación de mascotas en el municipio de Ocaña  
 **Autores:**  
 - Franklin Mauricio Hernández Galvis (Código: `0192326`)  
 - Andrés Felipe Carrascal Gómez (Código: `0192321`)  
@@ -11,68 +11,50 @@
 
 ---
 
-## 1. Evolución a Versión Entregable Profesional (Fase 2)
+## 1. Arquitectura de Producción y Novedades para la Feria de Proyectos
 
-En esta fase se transformó el prototipo inicial en una **aplicación web de producción limpia, ejecutiva y entregable**, eliminando de las interfaces cualquier etiqueta técnica o académica (`RF`, `RNF`, `PRO 01`, etc.) y adoptando una experiencia de usuario (UX/UI) propia de un software clínico e institucional moderno.
+En esta versión ejecutiva para la **Feria de Proyectos de Ingeniería de Sistemas (UFPSO)**, el aplicativo **EsquemaVet Ocaña** fue potenciado con **integraciones a APIs públicas en tiempo real**, **generación de códigos QR reales bajo estándar ISO/IEC 18004 escaneables con teléfonos móviles**, **cartografía epidemiológica interactiva del municipio de Ocaña** y una **consola OpenAPI REST en vivo**.
 
-### Principales Mejoras Implementadas
+### Principales Innovaciones Implementadas
 
-1. **Interfaz Limpia y Profesional (Sin etiquetas de RF en pantalla):**
-   - Rediseño integral con tipografía ejecutiva (**Plus Jakarta Sans** + **Inter**) e iconografía vectorial médica mediante **Lucide Icons**.
-   - Terminología natural orientada al usuario final (*Panel de Control*, *Carnet Sanitario Digital*, *Directorio de Mascotas*, *Acto Médico Veterinario*, *Vigilancia Epidemiológica Municipal*, *Infraestructura Cloud*).
+1. **Validador Público de Certificados y Códigos QR Reales (`ISO/IEC 18004` + Deep Linking `?verify=`):**
+   - Cada **Carnet Sanitario Digital** genera dinámicamente un código QR vectorial real que codifica la URL pública de verificación del paciente (`?verify=OCA-PET-001`).
+   - Al escanear el código QR con la cámara de cualquier teléfono celular (o usar el **Buscador de Verificación Pública** desde la portada sin necesidad de iniciar sesión), se despliega el **Certificado Oficial de Validación Sanitaria**, permitiendo comprobar la vigencia antirrábica, los lotes aplicados y la autenticidad del sello criptográfico (`SIG-VET...`) del médico veterinario.
 
-2. **Sistema de Registro con Credenciales Almacenables, Cifradas y Comprobables (`SecurityEngine`):**
-   - **Cifrado Determinista (`sha256v2$...`):** Todas las contraseñas creadas en el apartado **Crear Cuenta** (o asignadas por el veterinario en consulta presencial) se transforman mediante una función de resumen criptográfico con *salt* (`ESQUEMAVET_OCANA_2026`) antes de almacenarse en la base de datos.
-   - **Medidor de Fortaleza en Tiempo Real:** Durante el registro, el usuario visualiza una barra dinámica que evalúa la complejidad de su contraseña (*Básica*, *Buena*, *Alta Seguridad*) junto con validación de confirmación de clave.
-   - **Inicio de Sesión Comprobable por Correo o Documento:** Cualquier cuenta registrada queda almacenada de forma persistente y puede iniciar sesión en cualquier momento ingresando su **correo electrónico** o su **número de documento (Cédula / NIT)** junto con su contraseña, con opción de *Mantener sesión iniciada*.
-   - **Módulo de Verificación y Cambio de Contraseña:** Dentro de **Mi Cuenta y Usuarios**, cada usuario puede visualizar la firma criptográfica activa de su credencial y comprobar/actualizar su contraseña validando primero su clave vigente.
-   - **Habilitación de Cuentas en Consulta Presencial:** Cuando el Médico Veterinario registra un nuevo propietario desde el consultorio, el sistema genera automáticamente su credencial cifrada (por defecto su número de cédula o la clave indicada) para que el propietario pueda ingresar de inmediato desde su celular o computador.
+2. **Integración en Tiempo Real con API Biometeorológica Pública (`Open-Meteo REST API`):**
+   - Conectado en vivo a las coordenadas oficiales de **Ocaña, Norte de Santander (`8.2377° N, 73.3560° O`, 1.202 m s. n. m.)** mediante `https://api.open-meteo.com/v1/forecast`.
+   - Evalúa automáticamente la temperatura, humedad relativa y precipitación actuales en Ocaña para calcular el **Índice de Riesgo Epidemiológico de Vectores y Ectoparásitos** (proliferación de garrapatas *Rhipicephalus sanguineus* transmisoras de Ehrlichiosis y pulgas), emitiendo recomendaciones preventivas en el Panel de Control.
 
-3. **Criterios Adicionales de Visualización e Imagen Institucional:**
-   - **Código QR Vectorial Único en el Carnet Digital:** Cada mascota cuenta con un código QR vectorial (`SVG`) generado dinámicamente en su **Carnet Sanitario Digital** (`DataStore.generateQRCodeSVG()`), codificando su identificador sanitario (`OCA-PET-XXX`), nombre y documento del propietario.
-   - **Analítica Visual con Gráficas Interactivas (`Chart.js`):**
-     - Gráfica de anillo (*Doughnut*) en el **Panel de Control** que muestra la proporción de esquemas vigentes, próximos a vencer (`≤ 30 días`) y vencidos.
-     - Gráfica de barras comparativa en **Vigilancia Epidemiológica** con el balance del censo canino, censo felino, vacunas certificadas y controles antiparasitarios en el municipio de Ocaña.
-   - **Filtros Inteligentes de Alertas Preventivas:** Clasificación instantánea del calendario preventivo en *Todos*, *Vencidos*, *Próximos 30 días* y *Al día*.
+3. **Cartografía Epidemiológica Georreferenciada de Ocaña (`OpenStreetMap` + `Leaflet API`):**
+   - En el módulo de **Vigilancia Epidemiológica**, la Secretaría de Salud y los veterinarios visualizan un mapa interactivo real del municipio de Ocaña con:
+     - Ubicación de las clínicas veterinarias acreditadas, la Secretaría de Salud (Parque 29 de Mayo) y el campus de la **UFPSO (Sede El Algodonal / Vía Acolsure)**.
+     - Georreferenciación de cada mascota censada por sectores/barrios de Ocaña (*La Primavera*, *El Carmen*, *Santa Clara*, *Centro*, *Ciudadela Norte*, *Juan XXIII*, *Agua de la Virgen*) con código cromático según su estado inmunológico y cálculo de la meta de cobertura antirrábica de la OMS/OPS (≥ 80%, ODS 3).
 
-4. **Conexión con Google Cloud Firestore y Gestión Completa de Respaldos (Exportación e Importación):**
-   - Panel interactivo para configurar el `Project ID`, `Web API Key` y `Región` de **Google Cloud Firestore**, sincronizando las colecciones (`usuarios_sistema`, `mascotas_censo`, `historial_biologicos`) mediante la API REST de Firestore y registrando cada operación en la **Bitácora de Transacciones y Sincronización Cloud**.
-   - **Exportación e Importación de Copias de Seguridad (`.JSON`):** Permite descargar la base de datos completa en un archivo `.json` y restaurarla seleccionando el archivo desde el equipo.
+4. **Despacho Directo de Alertas Preventivas vía WhatsApp Oficial (`wa.me` API):**
+   - El calendario preventivo formatea automáticamente el recordatorio sanitario oficial con los datos del paciente, lote, clínica certificadora y enlace público de verificación QR, permitiendo enviarlo directamente al WhatsApp del propietario (`+57 ...`) con un solo clic.
+
+5. **Asistente Clínico de Autocompletado de Protocolos Biológicos:**
+   - En el módulo **Aplicar Biológico**, el médico veterinario cuenta con botones de protocolo rápido (*Antirrábica Oficial*, *Polivalente Séxtuple*, *Triple Felina CRP*, *Desparasitación Oral Total*, *Control de Garrapatas/Pulgas*) que calculan automáticamente la dosis sugerida según el peso en kilogramos del paciente y programan la fecha exacta del próximo refuerzo (+365 días o +90 días).
+
+6. **Consola Interactiva de API Pública REST (`OpenAPI v1 Explorer`) + Google Cloud Firestore REST:**
+   - Incluye un explorador interactivo de endpoints REST (`GET /api/v1/ocana/censo`, `GET /api/v1/ocana/verify/OCA-PET-001`, `GET /api/v1/ocana/biometeo`, `POST /api/v1/cloud/sync-all`) con medición de latencia en milisegundos, exportación de matriz epidemiológica a **Microsoft Excel (`.CSV`)** y respaldos completos en `.JSON`.
 
 ---
 
-## 2. Recursos, Lenguajes Base y Frameworks Utilizados
+## 2. Recursos, Lenguajes Base, Frameworks y APIs Utilizadas
 
 | Categoría | Tecnología / Recurso | Propósito en el Aplicativo |
 | :--- | :--- | :--- |
-| **Lenguajes Base** | **HTML5, CSS3, JavaScript (ES6+)** | Estructura semántica SPA, estilos de impresión `@media print` para el Carnet Digital y lógica modular orientada a objetos. |
-| **Framework CSS** | **Tailwind CSS (v3.4 CDN)** | Diseño adaptable (*Responsive Design*), tarjetas clínicas de alto contraste y componentes modernos. |
-| **Visualización de Datos** | **Chart.js (v4.4.1)** | Gráficas estadísticas interactivas para el estado de esquemas preventivos y el censo epidemiológico municipal. |
-| **Iconografía** | **Lucide Icons** | Iconos vectoriales limpios para navegación médica, seguridad y certificaciones. |
-| **Tipografías** | **Plus Jakarta Sans, Inter & Dancing Script** | Legibilidad ejecutiva en tableros de datos y representación caligráfica de la firma electrónica del médico veterinario. |
-| **Seguridad y Datos** | **SecurityEngine + Web Storage + Firestore REST** | Cifrado y verificación de contraseñas, persistencia local inmediata, generador QR SVG y sincronización con Google Cloud. |
+| **Lenguajes Base** | **HTML5, CSS3, JavaScript (ES6+)** | Arquitectura SPA modular, reglas `@media print` para exportación PDF del Carnet Digital. |
+| **Framework CSS** | **Tailwind CSS (v3.4 CDN)** | Diseño adaptable (*Responsive Design*), tarjetas clínicas de alto contraste y modales ejecutivos. |
+| **APIs Públicas Conectadas** | **Open-Meteo API, OpenStreetMap API, WhatsApp API & Firestore REST** | Telemetría climática y riesgo vectorial en Ocaña, cartografía municipal, notificaciones preventivas y sincronización Cloud. |
+| **Estándar QR Real** | **QRCode-Generator (ISO/IEC 18004)** | Generación de códigos QR vectoriales reales escaneables desde cualquier cámara móvil hacia la URL pública del carnet. |
+| **Visualización y Mapas** | **Chart.js (v4.4.1) & Leaflet.js (v1.9.4)** | Gráficas estadísticas interactivas y mapa epidemiológico georreferenciado por barrios de Ocaña. |
+| **Seguridad Criptográfica** | **SecurityEngine (`sha256v2$...`)** | Cifrado determinista con *salt* para credenciales de usuario y sellos digitales de certificación veterinaria (`SIG-VET...`). |
 
 ---
 
-## 3. Estructura de Archivos del Proyecto
-
-```text
-esquemaVet/
-├── index.html                  # Aplicación web principal (Versión entregable sin etiquetas de RF)
-├── DOCUMENTACION_PROYECTO.md   # Documentación técnica precisa de lo realizado y recursos utilizados
-├── css/
-│   └── styles.css              # Estilos corporativos, sello sanitario y formato de impresión PDF
-└── js/
-    ├── cloud-config.js         # Motor criptográfico (SecurityEngine) y conector Google Cloud Firestore
-    ├── data.js                 # Persistencia de datos, semilla Ocaña y generador de códigos QR SVG
-    └── app.js                  # Controlador de autenticación, registro verificable, gráficas y módulos
-```
-
----
-
-## 4. Cuentas Institucionales Precargadas y Prueba de Registro
-
-Además de poder **registrar cualquier cuenta nueva** en la pestaña **Crear Cuenta** y comprobar inmediatamente su ingreso con el documento o correo y contraseña creados, el sistema incluye las siguientes cuentas institucionales verificadas:
+## 3. Cuentas Institucionales Precargadas para Demostración en Feria
 
 | Perfil | Titular | Usuario (Correo o Documento) | Contraseña |
 | :--- | :--- | :--- | :--- |
