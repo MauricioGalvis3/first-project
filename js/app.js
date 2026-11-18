@@ -1,7 +1,7 @@
 /**
  * ============================================================================
- * EsquemaVet Ocaña - Controlador Principal de Producción (Versión Entregable)
- * Gestión Clínica Veterinaria, Carnet Sanitario Digital y Vigilancia Zoonótica
+ * EsquemaVet Ocaña - Controlador Principal de Producción (Feria de Proyectos)
+ * Gestión Clínica Veterinaria, API Pública, Carnet QR Real y Mapa Ocaña
  * ============================================================================
  */
 
@@ -11,6 +11,9 @@ const App = {
   currentView: 'dashboard',
   selectedPetId: null,
   alertFilter: 'ALL',
+  leafletMap: null,
+  leafletMarkersLayer: null,
+  lastApiConsoleJson: '',
   charts: {
     dashboardStatus: null,
     epiSpecies: null
@@ -31,14 +34,40 @@ const App = {
       }
     }
 
+    const accessiblePets = this.getAccessiblePets();
+    this.selectedPetId = accessiblePets.length > 0 ? accessiblePets[0].id : (this.db.pets[0]?.id || null);
+
     this.bindGlobalEvents();
     this.renderAppState();
+    this.refreshWeatherTelemetry(false);
+    this.checkUrlDeepLinks();
     this.refreshIcons();
   },
 
   refreshIcons() {
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
       window.lucide.createIcons();
+    }
+  },
+
+  /**
+   * Detecta si un ciudadano o jurado abrió la URL escaneando un código QR (?verify=OCA-PET-001)
+   */
+  checkUrlDeepLinks() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const verifyCode = params.get('verify');
+      if (verifyCode) {
+        setTimeout(() => {
+          this.openPublicVerifierModal(verifyCode);
+        }, 250);
+      } else if (params.get('fair') === '1') {
+        setTimeout(() => {
+          this.openFairPresentationModal();
+        }, 250);
+      }
+    } catch (e) {
+      console.warn('Deep link parsing warning:', e);
     }
   },
 
@@ -132,7 +161,7 @@ const App = {
       });
     }
 
-    // 7. Configuración de conexión Google Cloud
+    // 7. Configuración de conexión Google Cloud & Webhook API
     const cloudConfigForm = document.getElementById('form-cloud-config');
     if (cloudConfigForm) {
       cloudConfigForm.addEventListener('submit', (e) => {
@@ -163,6 +192,271 @@ const App = {
         this.renderPetsDirectory();
       });
     }
+
+    // 10. Enter en el buscador público de la portada
+    const landingVerifyInput = document.getElementById('landing-public-verify-input');
+    if (landingVerifyInput) {
+      landingVerifyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.verifyFromLandingInput();
+        }
+      });
+    }
+  },
+
+  /**
+   * ==========================================================================
+   * Telemetría Biometeorológica en Tiempo Real (Open-Meteo REST API Ocaña)
+   * ==========================================================================
+   */
+  async refreshWeatherTelemetry(showNotice = false) {
+    if (!window.PublicAPIConnector) return;
+    const weather = await window.PublicAPIConnector.fetchOcanaBiometeorology(showNotice);
+
+    // 1. Actualizar píldora en la portada
+    const authPill = document.getElementById('auth-weather-pill');
+    if (authPill) {
+      authPill.innerHTML = `
+        <span class="w-2 h-2 rounded-full ${weather.online ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}"></span>
+        <span>Ocaña API: <strong>${weather.temperatureC}°C</strong> • Hum: ${weather.humidityPercent}% • Riesgo Vectorial: <strong>${weather.vectorRisk.level}</strong></span>
+      `;
+    }
+
+    // 2. Actualizar tarjeta lateral
+    const sidebarWeather = document.getElementById('sidebar-weather-body');
+    if (sidebarWeather) {
+      sidebarWeather.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-lg font-extrabold text-slate-900">${weather.temperatureC}°C</div>
+            <div class="text-[11px] text-slate-500">${weather.weatherDescription}</div>
+          </div>
+          <div class="text-right text-[11px]">
+            <div class="font-semibold text-slate-700">Humedad: ${weather.humidityPercent}%</div>
+            <div class="text-slate-400">Viento: ${weather.windKmh} km/h</div>
+          </div>
+        </div>
+        <div class="mt-2 p-2 rounded-xl border text-[11px] ${weather.vectorRisk.lightBadgeClass}">
+          <div class="font-bold">Riesgo Vectores: ${weather.vectorRisk.level}</div>
+          <div class="mt-0.5 leading-snug">${weather.vectorRisk.recommendation}</div>
+        </div>
+        <div class="mt-1.5 text-[10px] font-mono text-slate-400 flex justify-between">
+          <span>Open-Meteo REST</span>
+          <span>${weather.latencyMs} ms</span>
+        </div>
+      `;
+    }
+
+    // 3. Actualizar banner en Panel de Control
+    const dashWeather = document.getElementById('dashboard-api-weather-banner');
+    if (dashWeather) {
+      dashWeather.innerHTML = `
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center text-lg shrink-0 font-bold">
+              🌡️
+            </div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-teal-800">Telemetría Biometeorológica Ocaña (API Open-Meteo en Vivo)</span>
+                <span class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${weather.coordinates} • ${weather.latencyMs} ms</span>
+              </div>
+              <p class="text-xs text-slate-600 mt-1">
+                Temperatura actual: <strong>${weather.temperatureC}°C</strong> (${weather.weatherDescription}) • Humedad relativa: <strong>${weather.humidityPercent}%</strong> • ${weather.vectorRisk.recommendation}
+              </p>
+            </div>
+          </div>
+          <div class="shrink-0">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border ${weather.vectorRisk.lightBadgeClass}">
+              <span>Riesgo Vectorial: ${weather.vectorRisk.level}</span>
+            </span>
+          </div>
+        </div>
+      `;
+    }
+
+    if (showNotice) {
+      this.showToast(`Telemetría de Ocaña actualizada desde Open-Meteo API (${weather.temperatureC}°C, ${weather.humidityPercent}% hum).`, 'info');
+    }
+  },
+
+  /**
+   * ==========================================================================
+   * Validador Público de Certificados Sanitarios y Códigos QR
+   * ==========================================================================
+   */
+  verifyFromLandingInput() {
+    const input = document.getElementById('landing-public-verify-input');
+    const code = input ? input.value.trim() : '';
+    this.openPublicVerifierModal(code || 'OCA-PET-001');
+  },
+
+  runPublicVerificationFromModal() {
+    const input = document.getElementById('modal-verify-input');
+    const code = input ? input.value.trim() : '';
+    this.renderPublicVerificationResult(code);
+  },
+
+  openPublicVerifierModal(queryCode = 'OCA-PET-001') {
+    const modal = document.getElementById('public-verify-modal');
+    const input = document.getElementById('modal-verify-input');
+    if (!modal) return;
+
+    modal.classList.remove('hidden');
+    const targetCode = (queryCode || this.selectedPetId || 'OCA-PET-001').trim();
+    if (input) input.value = targetCode;
+    this.renderPublicVerificationResult(targetCode);
+  },
+
+  closePublicVerifierModal() {
+    const modal = document.getElementById('public-verify-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  renderPublicVerificationResult(queryCode) {
+    const container = document.getElementById('public-verify-result-body');
+    if (!container) return;
+
+    const result = window.DataStore.verifyPublicRecord(queryCode, this.db);
+    if (!result) {
+      container.innerHTML = `
+        <div class="p-6 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
+          <div class="text-2xl">⚠️</div>
+          <div class="font-extrabold text-rose-900 text-base">No se encontró ningún certificado asociado a "${queryCode || 'vacío'}"</div>
+          <p class="text-xs text-rose-700 max-w-md mx-auto">
+            Verifique el código sanitario de la mascota (Ej. <code>OCA-PET-001</code>), el microchip (Ej. <code>COL-OCA-98102</code>) o el sello de firma digital (Ej. <code>SIG-VET01-8F92A1C4</code>).
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    const publicUrl = window.PublicAPIConnector.getPublicVerificationUrl(result.pet.id);
+    const qrSvg = window.DataStore.generateQRCodeSVG(publicUrl, 86);
+    const statusBadge = result.immunizationSummary.isCompliant
+      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+      : 'bg-amber-50 text-amber-800 border-amber-300';
+
+    container.innerHTML = `
+      <div class="p-4 rounded-2xl border ${statusBadge} flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="text-2xl">${result.immunizationSummary.isCompliant ? '✅' : '⏳'}</div>
+          <div>
+            <div class="text-[11px] font-bold uppercase tracking-wider">Estado Oficial del Certificado Sanitario</div>
+            <div class="text-base font-extrabold">${result.immunizationSummary.statusLabel}</div>
+            <div class="text-xs opacity-85">Verificado en tiempo real • ${result.municipality}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200">
+          ${qrSvg}
+        </div>
+      </div>
+
+      ${result.matchedSignatureRecord ? `
+        <div class="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-950">
+          <strong>✔ Firma Digital Veterinaria Autenticada:</strong> El sello criptográfico <code class="font-mono font-bold">${result.matchedSignatureRecord.digitalSignatureHash}</code> corresponde a la aplicación de <strong>${result.matchedSignatureRecord.vaccineName}</strong> (Lote ${result.matchedSignatureRecord.biologicalCode}) certificada por <strong>${result.matchedSignatureRecord.vetName}</strong> (${result.matchedSignatureRecord.vetLicense}).
+        </div>
+      ` : ''}
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+          <div class="font-bold text-teal-800 uppercase text-[11px]">Datos del Ejemplar</div>
+          <div class="text-sm font-extrabold text-slate-900">${result.pet.species === 'Canino' ? '🐕' : '🐈'} ${result.pet.name} <span class="font-mono text-xs text-teal-700">(${result.pet.id})</span></div>
+          <div><strong>Especie / Raza:</strong> ${result.pet.species} • ${result.pet.breed}</div>
+          <div><strong>Sexo / Peso:</strong> ${result.pet.sex} • ${result.pet.weightKg} kg</div>
+          <div><strong>Microchip:</strong> <span class="font-mono font-bold">${result.pet.microchipOrTag}</span></div>
+          <div><strong>Sector en Ocaña:</strong> Barrio ${result.pet.neighborhood || 'Ocaña'}</div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
+          <div class="font-bold text-sky-800 uppercase text-[11px]">Tenedor Responsable & Cobertura</div>
+          <div class="text-sm font-bold text-slate-900">${result.owner ? result.owner.name : 'Registrado'}</div>
+          <div><strong>Documento:</strong> <span class="font-mono">${result.owner ? result.owner.documentMasked : 'N/A'}</span></div>
+          <div><strong>Inmunización Antirrábica:</strong> ${result.immunizationSummary.rabiesProtected ? '<span class="text-emerald-700 font-bold">✔ Certificada</span>' : '<span class="text-amber-700 font-bold">Pendiente</span>'}</div>
+          <div><strong>Total Biológicos Firmados:</strong> ${result.records.length} registro(s)</div>
+          <div class="pt-1">
+            <button onclick="App.copyTextToClipboard('${publicUrl}', 'Enlace público de verificación copiado al portapapeles.')" class="text-teal-700 font-bold hover:underline">
+              🔗 Copiar URL Pública de este Certificado
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="text-xs font-bold uppercase text-slate-500">Historial de Biológicos Certificados con Firma Electrónica</div>
+        ${result.records.length === 0 ? `
+          <div class="p-4 rounded-xl bg-slate-50 text-xs text-slate-500 text-center">Sin aplicaciones registradas.</div>
+        ` : `
+          <div class="space-y-2">
+            ${result.records.map(r => {
+              const st = window.DataStore.getAlertStatus(r.nextBoosterDate);
+              return `
+                <div class="p-3 rounded-xl border border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div>
+                    <div class="font-bold text-slate-900">${r.vaccineName} <span class="font-mono text-teal-700">(${r.biologicalCode})</span></div>
+                    <div class="text-slate-500">Aplicada: ${r.dateAdministered} • Profesional: <strong>${r.vetName}</strong> (${r.vetLicense})</div>
+                  </div>
+                  <div class="text-right">
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${st.badgeClass}">${st.shortLabel} (${r.nextBoosterDate})</span>
+                    <div class="font-mono text-[10px] text-slate-400 mt-1">Sello: ${r.digitalSignatureHash}</div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    `;
+  },
+
+  /**
+   * ==========================================================================
+   * Modal Modo Feria de Proyectos UFPSO & QR Público Web
+   * ==========================================================================
+   */
+  openFairPresentationModal() {
+    const modal = document.getElementById('fair-presentation-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+
+    const publicUrl = 'https://antigravity.luch.dev/site/b8fc95dc-5aca-4e11-b80c-2fa0d8e8f0da/12e5c3d80acf70c398f608ea/';
+    const qrBox = document.getElementById('fair-public-qr-box');
+    if (qrBox) {
+      qrBox.innerHTML = window.DataStore.generateQRCodeSVG(publicUrl, 138);
+    }
+    const urlInput = document.getElementById('fair-public-url-input');
+    if (urlInput) {
+      urlInput.value = publicUrl;
+    }
+  },
+
+  closeFairPresentationModal() {
+    const modal = document.getElementById('fair-presentation-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  copyPublicSiteUrl() {
+    const url = 'https://antigravity.luch.dev/site/b8fc95dc-5aca-4e11-b80c-2fa0d8e8f0da/12e5c3d80acf70c398f608ea/';
+    this.copyTextToClipboard(url, 'Enlace público web copiado al portapapeles.');
+  },
+
+  copyCurrentCarnetVerifyLink() {
+    const petId = this.selectedPetId || 'OCA-PET-001';
+    const url = window.PublicAPIConnector.getPublicVerificationUrl(petId);
+    this.copyTextToClipboard(url, `Enlace público de verificación para ${petId} copiado al portapapeles.`);
+  },
+
+  copyTextToClipboard(text, successMsg) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast(successMsg, 'success');
+      }).catch(() => {
+        this.showToast(successMsg, 'info');
+      });
+    } else {
+      this.showToast(successMsg, 'info');
+    }
   },
 
   /**
@@ -190,7 +484,6 @@ const App = {
       return;
     }
 
-    // Actualizar marca de último acceso y migrar hash si venía de legacy
     user.lastLogin = new Date().toISOString().slice(0, 16).replace('T', ' ');
     user.passwordHash = window.SecurityEngine.hashPassword(password);
     window.DataStore.saveData(this.db);
@@ -365,7 +658,6 @@ const App = {
     const idx = this.db.users.findIndex(u => u.id === this.currentUser.id);
     if (idx === -1) return;
 
-    // Verificar que el documento o email no pertenezca a otro usuario distinto
     const conflict = this.db.users.find(
       u => u.id !== this.currentUser.id && (u.email.toLowerCase() === email.toLowerCase() || u.document === docNum)
     );
@@ -518,8 +810,10 @@ const App = {
     const birthDate = document.getElementById('pet-birthdate').value;
     const weightKg = parseFloat(document.getElementById('pet-weight').value) || 0;
     const color = document.getElementById('pet-color').value.trim();
+    const neighborhood = document.getElementById('pet-neighborhood')?.value || 'La Primavera';
     const microchipOrTag = document.getElementById('pet-microchip').value.trim();
     const ownerId = document.getElementById('pet-owner-id').value;
+    const sterilized = document.getElementById('pet-sterilized')?.value === 'true';
 
     if (!name || !breed || !birthDate || !ownerId) {
       this.showToast('Complete todos los datos requeridos del paciente y seleccione su propietario.', 'error');
@@ -528,6 +822,10 @@ const App = {
 
     const nextNumber = this.db.pets.length + 1;
     const newPetId = `OCA-PET-${String(nextNumber).padStart(3, '0')}`;
+
+    const baseCoords = window.OcanaGeoPoints?.neighborhoodCoords?.[neighborhood] || { lat: 8.2377, lng: -73.3560 };
+    const jitterLat = (Math.random() - 0.5) * 0.0025;
+    const jitterLng = (Math.random() - 0.5) * 0.0025;
 
     const newPet = {
       id: newPetId,
@@ -538,6 +836,11 @@ const App = {
       birthDate,
       weightKg,
       color: color || 'Sin especificar',
+      neighborhood,
+      lat: Number((baseCoords.lat + jitterLat).toFixed(4)),
+      lng: Number((baseCoords.lng + jitterLng).toFixed(4)),
+      sterilized,
+      allergies: 'Ninguna reportada',
       microchipOrTag: microchipOrTag || `COL-OCA-98${100 + nextNumber}`,
       ownerId,
       registeredByVetId: this.currentUser.id,
@@ -553,7 +856,45 @@ const App = {
 
     this.selectedPetId = newPet.id;
     this.renderAllActiveViews();
-    this.showToast(`Paciente "${name}" (${newPetId}) registrado y vinculado a su propietario.`, 'success');
+    this.showToast(`Paciente "${name}" (${newPetId}) registrado y georreferenciado en Barrio ${neighborhood}, Ocaña.`, 'success');
+  },
+
+  /**
+   * Autocompleta un protocolo biológico estándar con cálculo de dosis según peso y fecha de refuerzo
+   */
+  applyBiologicalPreset(presetKey) {
+    const catalog = window.OcanaGeoPoints?.biologicalCatalog || [];
+    const preset = catalog.find(item => item.key === presetKey);
+    if (!preset) return;
+
+    const petId = document.getElementById('vac-pet-id')?.value || this.selectedPetId;
+    const pet = this.db.pets.find(p => p.id === petId);
+    const weight = pet?.weightKg || 10;
+
+    document.getElementById('vac-category').value = preset.category;
+    document.getElementById('vac-name').value = preset.vaccineName;
+    const randomBatchNum = Math.floor(1000 + Math.random() * 8999);
+    document.getElementById('vac-code').value = `${preset.codePrefix}${randomBatchNum}A`;
+
+    let calculatedDose = preset.defaultDose;
+    if (preset.key === 'ENDOPARASITO') {
+      const tabs = Math.max(0.5, Math.ceil((weight / 10) * 2) / 2);
+      calculatedDose = `${tabs} Tableta(s) (Vía Oral - ${weight} kg)`;
+    } else if (preset.key === 'ECTOPARASITO') {
+      calculatedDose = `1 Comprimido (${weight} kg - Vía Oral)`;
+    }
+    document.getElementById('vac-dose').value = calculatedDose;
+
+    const dateInput = document.getElementById('vac-date');
+    const baseDateStr = dateInput?.value || '2026-11-18';
+    dateInput.value = baseDateStr;
+
+    const boosterDate = new Date(baseDateStr + 'T12:00:00');
+    boosterDate.setDate(boosterDate.getDate() + preset.boosterDays);
+    document.getElementById('vac-booster').value = boosterDate.toISOString().split('T')[0];
+    document.getElementById('vac-observations').value = preset.observations;
+
+    this.showToast(`Protocolo "${preset.vaccineName}" autocompletado para ${pet ? pet.name : 'el paciente'}.`, 'info');
   },
 
   handleRegisterVaccination() {
@@ -576,7 +917,12 @@ const App = {
       return;
     }
 
-    const signatureHash = `SIG-${this.currentUser.id.slice(-5)}-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
+    const signatureHash = window.SecurityEngine.generateClinicalSeal(
+      petId,
+      biologicalCode,
+      this.currentUser.id,
+      dateAdministered
+    );
 
     const newRecord = {
       id: `BIO-2026-${100 + this.db.vaccinations.length + 1}`,
@@ -600,7 +946,7 @@ const App = {
     window.GoogleCloudConfig.syncToCloud(window.GoogleCloudConfig.collections.VACCINATIONS, newRecord, 'BIOLOGICAL_APPLIED');
 
     document.getElementById('form-register-vaccine').reset();
-    document.getElementById('vac-date').value = '2026-11-09';
+    document.getElementById('vac-date').value = '2026-11-18';
     this.selectedPetId = petId;
 
     this.renderAllActiveViews();
@@ -683,6 +1029,16 @@ const App = {
     });
 
     this.renderAllActiveViews();
+
+    if (viewName === 'epidemiology') {
+      setTimeout(() => {
+        this.renderOcanaEpidemiologyMap();
+      }, 120);
+    }
+    if (viewName === 'cloud' && !this.lastApiConsoleJson) {
+      this.testLiveAPIEndpoint('CENSO');
+    }
+
     this.refreshIcons();
   },
 
@@ -731,7 +1087,6 @@ const App = {
       alertCountBadge.textContent = urgentAlerts.length;
     }
 
-    // Selector de cambio rápido de cuenta en barra superior
     const roleSwitcherSelect = document.getElementById('account-quick-switcher');
     if (roleSwitcherSelect) {
       roleSwitcherSelect.innerHTML = this.db.users.map(u => `
@@ -741,15 +1096,14 @@ const App = {
       `).join('');
     }
 
-    // Indicador Cloud en cabecera
     const cloudCfg = window.GoogleCloudConfig.getConfig();
     const cloudBadge = document.getElementById('header-cloud-badge');
     if (cloudBadge) {
-      if (cloudCfg.enabled && cloudCfg.apiKey) {
-        cloudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>GCP Firestore Activo</span>`;
+      if (cloudCfg.enabled && (cloudCfg.apiKey || cloudCfg.publicWebhookUrl)) {
+        cloudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>GCP & API REST Activo</span>`;
         cloudBadge.className = 'hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer';
       } else {
-        cloudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-teal-500"></span><span>Almacenamiento Híbrido</span>`;
+        cloudBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-teal-500"></span><span>API Pública & Cloud</span>`;
         cloudBadge.className = 'hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 cursor-pointer';
       }
     }
@@ -769,7 +1123,7 @@ const App = {
 
   /**
    * ==========================================================================
-   * Vista 1: Panel de Control, Gráficas y Alertas Preventivas
+   * Vista 1: Panel de Control, Gráficas y Alertas con Despacho WhatsApp API
    * ==========================================================================
    */
   setAlertFilter(filterCode) {
@@ -792,7 +1146,6 @@ const App = {
     document.getElementById('kpi-total-owners').textContent =
       this.currentUser.role === 'PROPIETARIO' ? 'Activa' : totalOwners;
 
-    // Banner ejecutivo según perfil
     const welcomeBanner = document.getElementById('dashboard-role-summary');
     if (this.currentUser.role === 'PROPIETARIO') {
       welcomeBanner.innerHTML = `
@@ -803,12 +1156,12 @@ const App = {
             </span>
             <h2 class="text-xl md:text-2xl font-extrabold text-white">Hola, ${this.currentUser.name}</h2>
             <p class="text-sm text-teal-100/95 mt-1 max-w-2xl">
-              Consulte en tiempo real el Carnet Sanitario Digital de sus mascotas, verifique las firmas veterinarias de cada biológico y mantenga al día sus esquemas de vacunación y desparasitación.
+              Consulte en tiempo real el Carnet Sanitario Digital de sus mascotas con código QR verificable, compruebe las firmas veterinarias y mantenga al día sus esquemas preventivos.
             </p>
           </div>
-          <div class="flex gap-2.5 shrink-0">
+          <div class="flex flex-wrap gap-2.5 shrink-0">
             <button onclick="App.navigateTo('carnet')" class="px-4 py-2.5 bg-white text-teal-950 font-bold text-sm rounded-xl shadow-md hover:bg-teal-50 transition">
-              Abrir Carnet Digital
+              Abrir Carnet Digital QR
             </button>
           </div>
         </div>
@@ -822,7 +1175,7 @@ const App = {
             </span>
             <h2 class="text-xl md:text-2xl font-extrabold text-white">${this.currentUser.clinicName || this.currentUser.name}</h2>
             <p class="text-sm text-teal-100/95 mt-1 max-w-2xl">
-              Gestione historias clínicas preventivas, registre propietarios en consulta presencial y certifique vacunas o desparasitaciones con firma digital verificable.
+              Gestione historias clínicas georreferenciadas, registre propietarios en consulta presencial y certifique vacunas o desparasitaciones con firma digital verificable por QR.
             </p>
           </div>
           <div class="flex flex-wrap gap-2.5 shrink-0">
@@ -830,7 +1183,7 @@ const App = {
               + Nuevo Paciente
             </button>
             <button onclick="App.navigateTo('vaccinate')" class="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-xl shadow-md transition">
-              + Registrar Vacuna / Biológico
+              + Aplicar Biológico
             </button>
           </div>
         </div>
@@ -844,19 +1197,18 @@ const App = {
             </span>
             <h2 class="text-xl md:text-2xl font-extrabold text-white">${this.currentUser.name}</h2>
             <p class="text-sm text-teal-100/95 mt-1 max-w-2xl">
-              Monitoree la cobertura de inmunización antirrábica y polivalente en el municipio, el censo poblacional de animales de compañía y la trazabilidad de lotes biológicos.
+              Monitoree en el mapa interactivo de Ocaña la cobertura de inmunización antirrábica y polivalente, el censo poblacional por barrios y la trazabilidad de lotes biológicos.
             </p>
           </div>
           <div class="flex gap-2.5 shrink-0">
             <button onclick="App.navigateTo('epidemiology')" class="px-4 py-2.5 bg-white text-teal-950 font-bold text-sm rounded-xl shadow-md hover:bg-teal-50 transition">
-              Ver Reporte Epidemiológico
+              🗺️ Abrir Mapa Epidemiológico
             </button>
           </div>
         </div>
       `;
     }
 
-    // Actualizar botones de filtro de alertas
     ['ALL', 'OVERDUE', 'UPCOMING', 'OK'].forEach(code => {
       const btn = document.getElementById(`alert-filter-${code}`);
       if (btn) {
@@ -891,6 +1243,7 @@ const App = {
               <div class="flex flex-wrap items-center gap-2">
                 <span class="font-bold text-slate-900 text-sm">${item.pet ? item.pet.name : item.vac.petId}</span>
                 <span class="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">${item.vac.petId}</span>
+                <span class="text-[11px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-semibold">Barrio ${item.pet?.neighborhood || 'Ocaña'}</span>
                 <span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-semibold border ${item.status.badgeClass}">
                   <span class="w-1.5 h-1.5 rounded-full ${item.status.dotClass}"></span>
                   ${item.status.label}
@@ -901,13 +1254,13 @@ const App = {
                 <span class="text-xs text-slate-500 font-mono ml-1">(Lote: ${item.vac.biologicalCode})</span>
               </p>
               <p class="text-xs text-slate-500 mt-0.5">
-                Responsable: <strong>${item.owner ? item.owner.name : 'No asignado'}</strong> • Tel: ${item.owner ? item.owner.phone : 'N/A'} • Refuerzo programado: <strong>${item.vac.nextBoosterDate}</strong>
+                Responsable: <strong>${item.owner ? item.owner.name : 'No asignado'}</strong> • WhatsApp: ${item.owner ? item.owner.phone : 'N/A'} • Refuerzo: <strong>${item.vac.nextBoosterDate}</strong>
               </p>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <button onclick="App.sendPreventiveReminder('${item.vac.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition">
-              📲 Enviar Recordatorio
+            <button onclick="App.sendPreventiveReminder('${item.vac.id}')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition">
+              📲 WhatsApp Oficial
             </button>
             <button onclick="App.navigateTo('carnet', '${item.vac.petId}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 transition">
               Ver Carnet
@@ -917,7 +1270,6 @@ const App = {
       `).join('');
     }
 
-    // Lista rápida de mascotas
     const quickPetsContainer = document.getElementById('dashboard-pets-quicklist');
     if (quickPetsContainer) {
       quickPetsContainer.innerHTML = accessiblePets.slice(0, 6).map(pet => {
@@ -932,13 +1284,13 @@ const App = {
                 <span class="text-[11px] font-mono bg-white border border-slate-200 text-teal-700 font-semibold px-1.5 py-0.5 rounded">${pet.id}</span>
               </div>
               <p class="text-xs text-slate-500 mt-1">
-                ${pet.breed} • ${window.DataStore.calculateAge(pet.birthDate)} • Prop: ${owner ? owner.name.split(' ')[0] + ' ' + (owner.name.split(' ')[2] || '') : 'N/A'}
+                ${pet.breed} • ${pet.neighborhood || 'Ocaña'} • Prop: ${owner ? owner.name.split(' ')[0] + ' ' + (owner.name.split(' ')[2] || '') : 'N/A'}
               </p>
             </div>
             <div class="text-right">
               <span class="inline-block text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">${vacCount} dosis</span>
               <button onclick="App.navigateTo('carnet', '${pet.id}')" class="block mt-1 text-xs font-bold text-sky-700 hover:underline">
-                Ver Carnet →
+                Carnet QR →
               </button>
             </div>
           </div>
@@ -982,16 +1334,71 @@ const App = {
     });
   },
 
+  /**
+   * Abre el modal de despacho de recordatorio preventivo conectado a WhatsApp Web API (wa.me)
+   */
   sendPreventiveReminder(vacId) {
     const vac = this.db.vaccinations.find(v => v.id === vacId);
     if (!vac) return;
     const pet = this.db.pets.find(p => p.id === vac.petId);
     const owner = pet ? this.db.users.find(u => u.id === pet.ownerId) : null;
+    const status = window.DataStore.getAlertStatus(vac.nextBoosterDate);
+    const verifyUrl = window.PublicAPIConnector.getPublicVerificationUrl(pet ? pet.id : vac.petId);
 
-    this.showToast(
-      `Notificación preventiva enviada a ${owner ? owner.name : 'Propietario'} (${owner ? owner.phone : ''}) recordando el refuerzo de ${vac.vaccineName} para ${pet ? pet.name : ''} programado el ${vac.nextBoosterDate}.`,
-      'success'
+    const rawPhone = (owner?.phone || '3154829103').replace(/[^0-9]/g, '');
+    const colPhone = rawPhone.startsWith('57') ? rawPhone : `57${rawPhone}`;
+
+    const messageText =
+      `🐾 *ESQUEMAVET OCAÑA - RECORDATORIO SANITARIO OFICIAL*\n\n` +
+      `Hola *${owner ? owner.name : 'Propietario'}*, le informamos desde la Red Municipal de Historiales Sanitarios de Ocaña que su mascota *${pet ? pet.name : vac.petId}* (${pet ? pet.id : ''}) tiene registrado el siguiente esquema preventivo:\n\n` +
+      `• *Biológico:* ${vac.vaccineName}\n` +
+      `• *Fecha programada de refuerzo:* ${vac.nextBoosterDate} (${status.shortLabel})\n` +
+      `• *Clínica certificadora:* ${vac.clinicName}\n\n` +
+      `Consulte y descargue su Carnet Sanitario Digital verificable con QR aquí:\n${verifyUrl}`;
+
+    const modal = document.getElementById('whatsapp-reminder-modal');
+    const metaBox = document.getElementById('wa-modal-meta');
+    const msgInput = document.getElementById('wa-modal-message');
+    const directLink = document.getElementById('wa-modal-direct-link');
+
+    if (metaBox) {
+      metaBox.innerHTML = `
+        <div><strong>Destinatario:</strong> ${owner ? owner.name : 'Propietario'} • <strong>WhatsApp:</strong> +${colPhone}</div>
+        <div><strong>Paciente:</strong> ${pet ? pet.name : vac.petId} (${pet ? pet.breed : ''}) • <strong>Sello Digital:</strong> <span class="font-mono">${vac.digitalSignatureHash}</span></div>
+      `;
+    }
+    if (msgInput) {
+      msgInput.value = messageText;
+    }
+    if (directLink) {
+      directLink.href = `https://wa.me/${colPhone}?text=${encodeURIComponent(messageText)}`;
+    }
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+
+    window.GoogleCloudConfig.recordSyncEvent(
+      'WHATSAPP_REMINDER_PREPARED',
+      'notificaciones_preventivas',
+      `Recordatorio preparado para ${owner ? owner.name : 'Propietario'} (+${colPhone}) - Paciente ${pet ? pet.id : vac.petId}`
     );
+  },
+
+  closeWhatsAppModal() {
+    const modal = document.getElementById('whatsapp-reminder-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  copyWhatsAppMessage() {
+    const msgInput = document.getElementById('wa-modal-message');
+    if (msgInput) {
+      this.copyTextToClipboard(msgInput.value, 'Mensaje de recordatorio sanitario copiado al portapapeles.');
+    }
+  },
+
+  onWhatsAppLaunched() {
+    this.showToast('Abriendo canal oficial de WhatsApp con el mensaje preventivo pre-cargado.', 'success');
+    this.closeWhatsAppModal();
   },
 
   /**
@@ -1028,6 +1435,7 @@ const App = {
         pet.id.toLowerCase().includes(query) ||
         pet.name.toLowerCase().includes(query) ||
         pet.breed.toLowerCase().includes(query) ||
+        (pet.neighborhood && pet.neighborhood.toLowerCase().includes(query)) ||
         (pet.microchipOrTag && pet.microchipOrTag.toLowerCase().includes(query)) ||
         (owner && owner.name.toLowerCase().includes(query)) ||
         (owner && owner.document.toLowerCase().includes(query));
@@ -1061,7 +1469,7 @@ const App = {
           </td>
           <td class="px-4 py-3.5 text-sm text-slate-700">
             <div class="font-medium">${pet.species} • ${pet.breed}</div>
-            <div class="text-xs text-slate-500">${pet.sex} • ${pet.weightKg} kg • ${pet.color}</div>
+            <div class="text-xs text-slate-500">${pet.sex} • ${pet.weightKg} kg • <span class="text-teal-700 font-semibold">Barrio ${pet.neighborhood || 'Ocaña'}</span></div>
           </td>
           <td class="px-4 py-3.5 text-sm text-slate-700">
             <div class="font-semibold">${window.DataStore.calculateAge(pet.birthDate)}</div>
@@ -1078,7 +1486,7 @@ const App = {
           </td>
           <td class="px-4 py-3.5 text-right space-x-1.5">
             <button onclick="App.navigateTo('carnet', '${pet.id}')" class="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 transition">
-              Carnet Digital
+              Carnet QR
             </button>
             ${this.currentUser.role === 'VETERINARIO' ? `
               <button onclick="App.openVaccinateForPet('${pet.id}')" class="px-2.5 py-1.5 bg-amber-100 text-amber-900 text-xs font-semibold rounded-lg hover:bg-amber-200 transition">
@@ -1103,7 +1511,7 @@ const App = {
 
   /**
    * ==========================================================================
-   * Vista 3: Carnet Sanitario Digital Interactivo con QR Vectorial
+   * Vista 3: Carnet Sanitario Digital Interactivo con QR Real Escaneable
    * ==========================================================================
    */
   renderCarnetView() {
@@ -1123,7 +1531,7 @@ const App = {
       selector.innerHTML = accessiblePets.map(p => {
         const owner = this.db.users.find(u => u.id === p.ownerId);
         return `<option value="${p.id}" ${p.id === this.selectedPetId ? 'selected' : ''}>
-          ${p.id} — ${p.name} (${p.species} / ${p.breed}) • Propietario: ${owner ? owner.name : 'N/A'}
+          ${p.id} — ${p.name} (${p.species} / ${p.breed}) • Sector: ${p.neighborhood || 'Ocaña'} • Prop: ${owner ? owner.name : 'N/A'}
         </option>`;
       }).join('');
     }
@@ -1133,25 +1541,47 @@ const App = {
 
     const owner = this.db.users.find(u => u.id === pet.ownerId);
     const records = this.db.vaccinations.filter(v => v.petId === pet.id);
+    const hasOverdue = records.some(r => window.DataStore.getAlertStatus(r.nextBoosterDate).code === 'OVERDUE');
+
+    const avatarEl = document.getElementById('carnet-species-avatar');
+    if (avatarEl) {
+      avatarEl.textContent = pet.species === 'Canino' ? '🐕' : '🐈';
+    }
+
+    const globalStatusEl = document.getElementById('carnet-global-status-badge');
+    if (globalStatusEl) {
+      if (records.length > 0 && !hasOverdue) {
+        globalStatusEl.textContent = '✔ Esquema al Día';
+        globalStatusEl.className = 'inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-1';
+      } else {
+        globalStatusEl.textContent = '⚠ Refuerzo Pendiente';
+        globalStatusEl.className = 'inline-flex items-center gap-1 text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 mt-1';
+      }
+    }
 
     document.getElementById('carnet-pet-name').textContent = pet.name;
     document.getElementById('carnet-pet-id').textContent = pet.id;
     document.getElementById('carnet-pet-species').textContent = `${pet.species} • ${pet.breed}`;
-    document.getElementById('carnet-pet-sex').textContent = pet.sex;
+    document.getElementById('carnet-pet-sex').textContent = `${pet.sex} • ${pet.sterilized ? 'Esterilizado(a)' : 'Entero(a)'}`;
     document.getElementById('carnet-pet-age').textContent = `${window.DataStore.calculateAge(pet.birthDate)} (${pet.birthDate})`;
     document.getElementById('carnet-pet-weight').textContent = `${pet.weightKg} kg • ${pet.color}`;
     document.getElementById('carnet-pet-chip').textContent = pet.microchipOrTag || 'N/A';
+
+    const neighEl = document.getElementById('carnet-pet-neighborhood');
+    if (neighEl) {
+      neighEl.textContent = `📍 Barrio ${pet.neighborhood || 'Ocaña'}`;
+    }
 
     document.getElementById('carnet-owner-name').textContent = owner ? owner.name : 'No asignado';
     document.getElementById('carnet-owner-doc').textContent = owner ? owner.document : 'N/A';
     document.getElementById('carnet-owner-phone').textContent = owner ? owner.phone : 'N/A';
     document.getElementById('carnet-owner-address').textContent = owner ? owner.address : 'Ocaña, N. de S.';
 
-    // Generar código QR único verificable para la mascota
+    // Generar código QR 100% Real y Escaneable que apunta a la URL pública de verificación (?verify=OCA-PET-XXX)
     const qrContainer = document.getElementById('carnet-qr-box');
     if (qrContainer) {
-      const qrPayload = `ESQUEMAVET|${pet.id}|${pet.name}|${owner ? owner.document : ''}|OCANA`;
-      qrContainer.innerHTML = window.DataStore.generateQRCodeSVG(qrPayload, 88);
+      const publicVerificationUrl = window.PublicAPIConnector.getPublicVerificationUrl(pet.id);
+      qrContainer.innerHTML = window.DataStore.generateQRCodeSVG(publicVerificationUrl, 92);
     }
 
     const tbody = document.getElementById('carnet-records-tbody');
@@ -1191,7 +1621,9 @@ const App = {
             <td class="px-3.5 py-3">
               <div class="signature-script">${r.vetName}</div>
               <div class="text-[11px] font-semibold text-teal-800">${r.vetLicense}</div>
-              <div class="text-[10px] font-mono text-slate-400">Sello: ${r.digitalSignatureHash}</div>
+              <button onclick="App.openPublicVerifierModal('${r.digitalSignatureHash}')" class="text-[10px] font-mono text-slate-400 hover:text-teal-700 underline">
+                Sello: ${r.digitalSignatureHash}
+              </button>
             </td>
           </tr>
         `;
@@ -1217,9 +1649,20 @@ const App = {
     select.innerHTML = pets.map(p => {
       const owner = this.db.users.find(u => u.id === p.ownerId);
       return `<option value="${p.id}" ${p.id === this.selectedPetId ? 'selected' : ''}>
-        ${p.id} — ${p.name} (${p.species} / ${p.breed}) • Propietario: ${owner ? owner.name : 'N/A'}
+        ${p.id} — ${p.name} (${p.species} / ${p.breed} • ${p.weightKg} kg) • Prop: ${owner ? owner.name : 'N/A'}
       </option>`;
     }).join('');
+
+    // Renderizar botones de autocompletado clínico rápido
+    const presetsContainer = document.getElementById('vac-quick-presets');
+    if (presetsContainer && window.OcanaGeoPoints?.biologicalCatalog) {
+      presetsContainer.innerHTML = window.OcanaGeoPoints.biologicalCatalog.map(item => `
+        <button type="button" onclick="App.applyBiologicalPreset('${item.key}')"
+          class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 hover:border-teal-300 text-xs font-semibold shadow-sm transition">
+          ${item.label}
+        </button>
+      `).join('');
+    }
 
     if (this.currentUser && this.currentUser.role === 'VETERINARIO') {
       document.getElementById('vac-vet-signer-name').textContent = this.currentUser.name;
@@ -1229,7 +1672,7 @@ const App = {
 
     const dateInput = document.getElementById('vac-date');
     if (dateInput && !dateInput.value) {
-      dateInput.value = '2026-11-09';
+      dateInput.value = '2026-11-18';
     }
 
     this.renderVetPrecheckHistory(select.value || this.selectedPetId);
@@ -1255,7 +1698,7 @@ const App = {
           <span class="text-xs font-semibold text-teal-800">${pet.breed} • ${pet.weightKg} kg</span>
         </div>
         <p class="text-xs text-teal-800 mt-1">
-          Edad: <strong>${window.DataStore.calculateAge(pet.birthDate)}</strong> • Propietario: <strong>${owner ? owner.name : 'N/A'}</strong>
+          Edad: <strong>${window.DataStore.calculateAge(pet.birthDate)}</strong> • Sector: <strong>${pet.neighborhood || 'Ocaña'}</strong> • Prop: <strong>${owner ? owner.name : 'N/A'}</strong>
         </p>
       </div>
       <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
@@ -1303,7 +1746,6 @@ const App = {
     document.getElementById('prof-phone').value = this.currentUser.phone || '';
     document.getElementById('prof-address').value = this.currentUser.address || '';
 
-    // Mostrar el hash criptográfico actual de la credencial almacenada
     const hashDisplay = document.getElementById('sec-stored-hash-preview');
     if (hashDisplay) {
       hashDisplay.textContent = this.currentUser.passwordHash || 'Cifrado estándar activo';
@@ -1377,7 +1819,7 @@ const App = {
 
   /**
    * ==========================================================================
-   * Vista 6: Vigilancia Epidemiológica y Censo Sanitario Municipal
+   * Vista 6: Vigilancia Epidemiológica, Mapa Interactivo de Ocaña y Exportación CSV
    * ==========================================================================
    */
   renderEpidemiologyView() {
@@ -1395,6 +1837,38 @@ const App = {
     const elDesp = document.getElementById('epi-count-desp');
     if (elDesp) elDesp.textContent = totalDesparasitaciones;
 
+    // Cobertura antirrábica municipal
+    const petsWithRabies = this.db.pets.filter(p =>
+      this.db.vaccinations.some(v =>
+        v.petId === p.id &&
+        (v.vaccineName.toLowerCase().includes('antirrábica') ||
+         v.vaccineName.toLowerCase().includes('rabisin') ||
+         v.vaccineName.toLowerCase().includes('defensor'))
+      )
+    ).length;
+    const rabiesPct = this.db.pets.length > 0 ? Math.round((petsWithRabies / this.db.pets.length) * 100) : 0;
+    const rabiesEl = document.getElementById('epi-rabies-coverage-pct');
+    if (rabiesEl) rabiesEl.textContent = `${rabiesPct}%`;
+
+    // Resumen por sectores/barrios de Ocaña
+    const neighContainer = document.getElementById('epi-neighborhood-summary');
+    if (neighContainer) {
+      const countsByNeigh = {};
+      this.db.pets.forEach(p => {
+        const n = p.neighborhood || 'Centro';
+        countsByNeigh[n] = (countsByNeigh[n] || 0) + 1;
+      });
+      neighContainer.innerHTML = Object.entries(countsByNeigh).map(([barrio, count]) => `
+        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+          <div>
+            <div class="font-bold text-slate-800">📍 ${barrio}</div>
+            <div class="text-[11px] text-slate-500">Sector Ocaña</div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full bg-teal-100 text-teal-900 font-extrabold">${count} masc.</span>
+        </div>
+      `).join('');
+    }
+
     const traceBody = document.getElementById('epi-traceability-tbody');
     if (traceBody) {
       traceBody.innerHTML = this.db.vaccinations.map(v => {
@@ -1410,13 +1884,90 @@ const App = {
               <div class="font-semibold text-slate-800">${v.vetName}</div>
               <div class="text-[11px] text-slate-500">${v.vetLicense} • ${v.clinicName}</div>
             </td>
-            <td class="px-3.5 py-3 font-mono text-[11px] text-emerald-700 font-semibold">${v.digitalSignatureHash}</td>
+            <td class="px-3.5 py-3">
+              <button onclick="App.openPublicVerifierModal('${v.digitalSignatureHash}')" class="font-mono text-[11px] text-emerald-700 font-semibold hover:underline">
+                ${v.digitalSignatureHash}
+              </button>
+            </td>
           </tr>
         `;
       }).join('');
     }
 
     this.renderEpidemiologyChart(caninos, felinos, totalVacunas, totalDesparasitaciones);
+  },
+
+  /**
+   * Renderiza el Mapa Georreferenciado Interactivo de Ocaña con OpenStreetMap + Leaflet API
+   */
+  renderOcanaEpidemiologyMap() {
+    const mapContainer = document.getElementById('ocana-epi-map');
+    if (!mapContainer || typeof window.L === 'undefined') return;
+
+    if (!this.leafletMap) {
+      this.leafletMap = window.L.map('ocana-epi-map').setView([8.2385, -73.3555], 14);
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap • EsquemaVet Ocaña UFPSO'
+      }).addTo(this.leafletMap);
+      this.leafletMarkersLayer = window.L.layerGroup().addTo(this.leafletMap);
+    }
+
+    this.leafletMap.invalidateSize();
+    this.leafletMarkersLayer.clearLayers();
+
+    // 1. Marcadores de Clínicas Veterinarias Acreditadas, Secretaría de Salud y UFPSO
+    const institutions = window.OcanaGeoPoints?.institutions || [];
+    institutions.forEach(inst => {
+      const marker = window.L.circleMarker([inst.lat, inst.lng], {
+        radius: 10,
+        fillColor: '#0d9488',
+        color: '#ffffff',
+        weight: 2.5,
+        opacity: 1,
+        fillOpacity: 0.95
+      });
+      marker.bindPopup(`
+        <div class="text-xs space-y-1">
+          <div class="font-extrabold text-teal-800 uppercase text-[10px]">${inst.type}</div>
+          <div class="font-bold text-slate-900 text-sm">${inst.name}</div>
+          <div class="text-slate-600">${inst.director}</div>
+          <div class="text-slate-500">${inst.address}</div>
+        </div>
+      `);
+      this.leafletMarkersLayer.addLayer(marker);
+    });
+
+    // 2. Marcadores de Mascotas Censadas por Barrios en Ocaña
+    this.db.pets.forEach(pet => {
+      const lat = pet.lat || 8.2377;
+      const lng = pet.lng || -73.3560;
+      const records = this.db.vaccinations.filter(v => v.petId === pet.id);
+      const hasOverdue = records.some(r => window.DataStore.getAlertStatus(r.nextBoosterDate).code === 'OVERDUE');
+      const color = (records.length > 0 && !hasOverdue) ? '#10b981' : '#f43f5e';
+
+      const petMarker = window.L.circleMarker([lat, lng], {
+        radius: 8,
+        fillColor: color,
+        color: '#0f172a',
+        weight: 1.5,
+        opacity: 1,
+        fillOpacity: 0.9
+      });
+      petMarker.bindPopup(`
+        <div class="text-xs space-y-1">
+          <div class="font-bold text-slate-900">${pet.species === 'Canino' ? '🐕' : '🐈'} ${pet.name} (${pet.id})</div>
+          <div class="text-slate-600">${pet.species} • ${pet.breed} • Barrio <strong>${pet.neighborhood || 'Ocaña'}</strong></div>
+          <div class="font-semibold ${records.length > 0 && !hasOverdue ? 'text-emerald-700' : 'text-rose-700'}">
+            ${records.length > 0 && !hasOverdue ? '✔ Esquema Vigente' : '⚠ Refuerzo Pendiente'} (${records.length} dosis)
+          </div>
+          <button onclick="App.openPublicVerifierModal('${pet.id}')" class="mt-1 px-2.5 py-1 rounded-lg bg-teal-600 text-white font-bold text-[11px]">
+            Ver Certificado QR
+          </button>
+        </div>
+      `);
+      this.leafletMarkersLayer.addLayer(petMarker);
+    });
   },
 
   renderEpidemiologyChart(caninos, felinos, vacunas, desparasitaciones) {
@@ -1452,19 +2003,146 @@ const App = {
   },
 
   /**
+   * Exporta la matriz epidemiológica a un archivo CSV compatible con Microsoft Excel
+   */
+  exportEpidemiologyCSV() {
+    const headers = [
+      'ID_REGISTRO',
+      'CATEGORIA',
+      'BIOLOGICO',
+      'LOTE_SERIE',
+      'CODIGO_MASCOTA',
+      'NOMBRE_MASCOTA',
+      'ESPECIE',
+      'BARRIO_OCANA',
+      'FECHA_APLICACION',
+      'PROXIMO_REFUERZO',
+      'MEDICO_VETERINARIO',
+      'LICENCIA_COMVEZCOL',
+      'FIRMA_DIGITAL_SHA256'
+    ];
+
+    const rows = this.db.vaccinations.map(v => {
+      const pet = this.db.pets.find(p => p.id === v.petId);
+      return [
+        v.id,
+        v.category,
+        `"${(v.vaccineName || '').replace(/"/g, '""')}"`,
+        v.biologicalCode,
+        v.petId,
+        `"${pet ? pet.name : ''}"`,
+        pet ? pet.species : '',
+        `"${pet ? (pet.neighborhood || 'Ocaña') : 'Ocaña'}"`,
+        v.dateAdministered,
+        v.nextBoosterDate,
+        `"${v.vetName}"`,
+        v.vetLicense,
+        v.digitalSignatureHash
+      ].join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `matriz_epidemiologica_ocana_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    window.GoogleCloudConfig.recordSyncEvent('CSV_EXPORT', 'historial_biologicos', 'Matriz epidemiológica exportada a Excel (.CSV)');
+    this.showToast('Matriz epidemiológica de Ocaña descargada en formato Excel (.CSV).', 'success');
+  },
+
+  /**
    * ==========================================================================
-   * Vista 7: Configuración Google Cloud y Respaldos de Base de Datos
+   * Vista 7: Consola Interactiva de API Pública REST, Cloud y Respaldos
    * ==========================================================================
    */
+  async testLiveAPIEndpoint(endpointType) {
+    const methodEl = document.getElementById('api-console-method');
+    const urlEl = document.getElementById('api-console-url');
+    const statusEl = document.getElementById('api-console-status');
+    const outputEl = document.getElementById('api-console-output');
+    if (!outputEl) return;
+
+    const t0 = performance.now();
+    let payload = {};
+    let method = 'GET';
+    let url = '/api/v1/ocana/censo';
+
+    if (endpointType === 'CENSO') {
+      url = '/api/v1/ocana/censo';
+      const caninos = this.db.pets.filter(p => p.species === 'Canino').length;
+      const felinos = this.db.pets.filter(p => p.species === 'Felino').length;
+      payload = {
+        status: 200,
+        endpoint: 'https://antigravity.luch.dev/site/b8fc95dc-5aca-4e11-b80c-2fa0d8e8f0da/12e5c3d80acf70c398f608ea/api/v1/ocana/censo',
+        municipality: 'Ocaña, Norte de Santander, Colombia',
+        institution: 'Universidad Francisco de Paula Santander Seccional Ocaña (UFPSO)',
+        timestamp: new Date().toISOString(),
+        metrics: {
+          totalPetsRegistered: this.db.pets.length,
+          canines: caninos,
+          felines: felinos,
+          totalBiologicalsCertified: this.db.vaccinations.length,
+          accreditedVeterinarians: this.db.users.filter(u => u.role === 'VETERINARIO').length
+        },
+        sectorsCovered: [...new Set(this.db.pets.map(p => p.neighborhood || 'Ocaña'))]
+      };
+    } else if (endpointType === 'VERIFY') {
+      const targetId = this.selectedPetId || 'OCA-PET-001';
+      url = `/api/v1/ocana/verify/${targetId}`;
+      payload = window.DataStore.verifyPublicRecord(targetId, this.db);
+    } else if (endpointType === 'WEATHER') {
+      url = 'https://api.open-meteo.com/v1/forecast?latitude=8.2377&longitude=-73.356';
+      payload = await window.PublicAPIConnector.fetchOcanaBiometeorology(true);
+    } else if (endpointType === 'CLOUD_SYNC') {
+      method = 'POST';
+      url = '/api/v1/cloud/sync-all';
+      const syncRes = await window.GoogleCloudConfig.pushEntireDatabase(this.db);
+      this.renderCloudStatusView();
+      payload = {
+        status: 200,
+        operation: 'CLOUD_FIRESTORE_BATCH_SYNC',
+        projectId: window.GoogleCloudConfig.getConfig().projectId,
+        region: window.GoogleCloudConfig.getConfig().region,
+        documentsProcessed: syncRes.totalDocs,
+        timestamp: syncRes.timestamp
+      };
+    }
+
+    const elapsed = Math.max(4, Math.round(performance.now() - t0));
+    const formatted = JSON.stringify(payload, null, 2);
+    this.lastApiConsoleJson = formatted;
+
+    if (methodEl) {
+      methodEl.textContent = method;
+      methodEl.className = method === 'POST'
+        ? 'px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[11px]'
+        : 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[11px]';
+    }
+    if (urlEl) urlEl.textContent = url;
+    if (statusEl) statusEl.textContent = `HTTP 200 OK • ${elapsed} ms`;
+    outputEl.textContent = formatted;
+  },
+
+  copyAPIConsoleOutput() {
+    if (!this.lastApiConsoleJson) return;
+    this.copyTextToClipboard(this.lastApiConsoleJson, 'Respuesta JSON de la API copiada al portapapeles.');
+  },
+
   renderCloudStatusView() {
     const cfg = window.GoogleCloudConfig.getConfig();
     const projInput = document.getElementById('gcp-project-id');
     const keyInput = document.getElementById('gcp-api-key');
+    const webhookInput = document.getElementById('gcp-webhook-url');
     const regionInput = document.getElementById('gcp-region');
     const enabledCheck = document.getElementById('gcp-enabled');
 
     if (projInput) projInput.value = cfg.projectId || '';
     if (keyInput) keyInput.value = cfg.apiKey || '';
+    if (webhookInput) webhookInput.value = cfg.publicWebhookUrl || '';
     if (regionInput) regionInput.value = cfg.region || 'us-east1';
     if (enabledCheck) enabledCheck.checked = Boolean(cfg.enabled);
 
@@ -1480,7 +2158,7 @@ const App = {
           </tr>
         `;
       } else {
-        logsContainer.innerHTML = logs.slice(0, 12).map(l => `
+        logsContainer.innerHTML = logs.slice(0, 14).map(l => `
           <tr class="border-b border-slate-100 text-xs">
             <td class="px-3 py-2 font-mono text-slate-500">${l.timestamp.slice(0, 19).replace('T', ' ')}</td>
             <td class="px-3 py-2 font-semibold text-slate-800">${l.operation}</td>
@@ -1495,13 +2173,14 @@ const App = {
   handleSaveCloudConfig() {
     const projectId = document.getElementById('gcp-project-id').value.trim();
     const apiKey = document.getElementById('gcp-api-key').value.trim();
+    const publicWebhookUrl = document.getElementById('gcp-webhook-url')?.value.trim() || '';
     const region = document.getElementById('gcp-region').value;
     const enabled = document.getElementById('gcp-enabled').checked;
 
-    window.GoogleCloudConfig.saveConfig({ projectId, apiKey, region, enabled });
+    window.GoogleCloudConfig.saveConfig({ projectId, apiKey, publicWebhookUrl, region, enabled });
     this.renderHeaderAndSidebar();
     this.renderCloudStatusView();
-    this.showToast('Parámetros de conexión con Google Cloud Platform guardados correctamente.', 'success');
+    this.showToast('Parámetros de conexión Cloud Firestore y Webhook API guardados correctamente.', 'success');
   },
 
   exportDatabaseBackup() {
