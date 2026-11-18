@@ -3,7 +3,7 @@
   "name": "Busca el repositorio esquemaVet",
   "createdAt": "2026-11-18T16:08:30.411Z",
   "filename": "3e0ede50-b4f2-4524-b679-650c3b6d30dd.json",
-  "geminiStarted": false,
+  "geminiStarted": true,
   "messages": [
     {
       "id": "cd45780e-4369-4339-9f39-f69393643acb",
@@ -15,6 +15,42 @@
       "parent_message_id": null,
       "created_at": "2026-11-18T16:09:05.058Z",
       "sender": "ios",
+      "is_cancelled": false
+    },
+    {
+      "id": "d63ea5c1-5da9-4ed2-bd5f-afb9fb79f27b",
+      "role": "agent",
+      "content": "Encontré el repositorio **`esquemaVet`** en GitHub:\n\n* **Repositorio:** [MauricioGalvis3/esquemaVet](https://github.com/MauricioGalvis3/esquemaVet)\n* **Nombre del proyecto:** EsquemaVet Ocaña (UFPSO — Proyecto Integrador I, 2026)\n* **Autores:** Franklin Mauricio Hernández Galvis y Andrés Felipe Carrascal Gómez\n* **Descripción:** Aplicativo web para la gestión de historiales sanitarios, carnet digital con código QR y control de vacunación/desparasitación de mascotas en el municipio de Ocaña.\n* **Estructura principal:**\n  * `index.html` — Aplicación web principal\n  * `css/` — Hojas de estilo\n  * `js/` — Lógica de la aplicación\n  * `README.md` y `DOCUMENTACION_PROYECTO.md` — Documentación general y técnica\n\n¿Te gustaría que traiga los archivos de este repositorio a tu espacio de trabajo actual para revisarlos, ejecutarlos o hacerles modificaciones?",
+      "status": "completed",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": "cd45780e-4369-4339-9f39-f69393643acb",
+      "created_at": "2026-11-18T16:10:16.954Z",
+      "sender": "macOS",
+      "is_cancelled": false
+    },
+    {
+      "id": "aa6c083f-83ef-4718-bba9-738861eafacd",
+      "role": "user",
+      "content": "Tienes acceso am repositorio?",
+      "status": "pending",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": null,
+      "created_at": "2026-11-18T16:10:16.958Z",
+      "sender": "ios",
+      "is_cancelled": false
+    },
+    {
+      "id": "24010fcb-3ace-4e30-af73-cffbfa3e099f",
+      "role": "agent",
+      "content": "**Sí, tengo acceso de lectura completo.** \n\nAl ser un repositorio público en GitHub ([MauricioGalvis3/esquemaVet](https://github.com/MauricioGalvis3/esquemaVet)), puedo:\n\n- Leer todo el código fuente, la documentación y sus archivos.\n- Descargar o clonar todo el contenido directamente en este espacio de trabajo para que puedas editarlo, probarlo o ejecutarlo.\n\n---\n\n> [!NOTE]\n> **Para conectar o subir cambios a GitHub:**  \n> Si este es tu proyecto y deseas sincronizarlo o conectarlo directamente a tu cuenta de GitHub desde esta plataforma, pulsa el **ícono de GitHub** en la parte superior del chat para vincular tu repositorio.\n\n¿Deseas que clone y traiga todos los archivos de **`esquemaVet`** a este espacio de trabajo ahora mismo?",
+      "status": "completed",
+      "model": "gemini-3.8-flash-high",
+      "client_type": "gemini-bridge",
+      "parent_message_id": "aa6c083f-83ef-4718-bba9-738861eafacd",
+      "created_at": "2026-11-18T16:10:31.563Z",
+      "sender": "macOS",
       "is_cancelled": false
     }
   ]
